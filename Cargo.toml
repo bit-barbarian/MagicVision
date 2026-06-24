@@ -1,0 +1,12 @@
+[package]
+name = "MagicVision"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# tokio = { version = "1.52.3", features = ["full"] }
+reqwest = { version = "0.13.4", features = ["blocking", "json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+image_hasher = { version = "3.1.1" }
+# image_hasher = { version = "3.1.1", features = ["fast_resize_unstable"] }
