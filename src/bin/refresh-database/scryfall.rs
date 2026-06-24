@@ -1,16 +1,29 @@
+use futures::stream::{self, StreamExt};
+use governor::{
+    Quota, RateLimiter,
+    clock::DefaultClock,
+    state::{InMemoryState, NotKeyed},
+};
 use reqwest::{
-    blocking,
+    Client,
     header::{ACCEPT, HeaderMap, HeaderValue, USER_AGENT},
 };
 use serde::Deserialize;
 use std::{
-    error::Error,
-    fs::{self, File},
-    io::{self, BufReader, Write},
-    path::Path,
-    thread::sleep,
+    fs,
+    io::Write,
+    num::NonZeroU32,
+    path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
+use tokio::fs as tokio_fs;
+
+use crate::{DATA_DIR, DynError, DynResult, atomic_write};
+
+const MAX_RETRIES: usize = 3;
+const MAX_CONCURRENT: usize = 10;
+const RATE_LIMIT: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
 #[derive(Debug, Deserialize)]
 struct BulkDataMetaItem {
@@ -38,42 +51,50 @@ pub struct ImageUris {
     pub border_crop: String,
 }
 
-fn scryfall_headers() -> Result<HeaderMap, Box<dyn Error>> {
+struct Job {
+    id: String,
+    name: String,
+    set: String,
+    number: String,
+    uris: Vec<(usize, String)>,
+}
+
+fn scryfall_headers() -> DynResult<HeaderMap> {
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_str("MagicVision/0.1.0")?);
     headers.insert(ACCEPT, HeaderValue::from_str("application/json")?);
     Ok(headers)
 }
 
-pub fn get_bulk_data_endpoint(url: &str) -> Result<String, Box<dyn Error>> {
-    let client = blocking::Client::new();
+pub async fn get_bulk_data_endpoint(url: &str) -> DynResult<String> {
+    let client = Client::new();
     let headers = scryfall_headers()?;
 
     // Fetch data & check status
     println!("Fetching latest bulk data endpoint...");
-    let response = client.get(url).headers(headers).send()?;
+    let response = client.get(url).headers(headers).send().await?;
     if !response.status().is_success() {
         return Err(format!("Request failed: {}", response.status()).into());
     }
 
     // Deserialize into struct
-    let bulk_data: BulkDataMetaItem = response.json()?;
+    let bulk_data: BulkDataMetaItem = response.json().await?;
     Ok(bulk_data.download_uri)
 }
 
-pub fn download_bulk_data(url: &str, data_dir: &str) -> Result<String, Box<dyn Error>> {
-    let client = blocking::Client::builder()
+pub async fn download_bulk_data(url: &str) -> DynResult<String> {
+    let client = Client::builder()
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
     let headers = scryfall_headers()?;
 
     // Fetch data & check status
     println!("Fetching data... (this may take a while, ~500MB)");
-    let response = client.get(url).headers(headers).send()?;
+    let response = client.get(url).headers(headers).send().await?;
     if !response.status().is_success() {
         return Err(format!("Failed fetching data: {}", response.status()).into());
     }
-    let content = response.text()?;
+    let content = response.text().await?;
     println!("Download complete.");
 
     // Format to NDJSON
@@ -97,140 +118,179 @@ pub fn download_bulk_data(url: &str, data_dir: &str) -> Result<String, Box<dyn E
         .rfind('/')
         .map(|idx| &url[idx + 1..]) // Slice from after the last slash to the end
         .unwrap_or("data.json");
-    let file_path = Path::new(data_dir).join(filename);
-    println!("Saving data to: {}{}", data_dir, filename);
+    let file_path = Path::new(DATA_DIR).join(filename);
+    println!("Saving data to: {}{}", DATA_DIR, filename);
     let mut file = fs::File::create(&file_path)?;
     file.write_all(processed_content.as_bytes())?;
 
-    Ok(format!("{}{}", data_dir, filename))
+    Ok(format!("{}{}", DATA_DIR, filename))
 }
 
-pub fn read_stored_url(data_dir: &str) -> Result<Option<String>, Box<dyn Error>> {
-    let path = Path::new(data_dir).join("last_downloaded_url.txt");
-    if !path.exists() {
-        return Ok(None);
-    }
+async fn fetch_with_retry(
+    client: &Client,
+    url: &str,
+    headers: &HeaderMap,
+    max_retries: usize,
+) -> Result<reqwest::Response, DynError> {
+    let mut attempt = 0;
 
-    let url = fs::read_to_string(path)?.trim().to_string();
+    loop {
+        attempt += 1;
 
-    if url.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(url))
-    }
-}
+        match client.get(url).headers(headers.clone()).send().await {
+            Ok(r) => {
+                if r.status().is_success() {
+                    return Ok(r);
+                }
 
-pub fn write_stored_url(url: &str, data_dir: &str) -> Result<(), Box<dyn Error>> {
-    let path = Path::new(data_dir).join("last_downloaded_url.txt");
-    fs::create_dir_all(data_dir)?;
-
-    let mut file = fs::File::create(path)?;
-    writeln!(file, "{}", url)?;
-
-    Ok(())
-}
-
-pub fn update_images(json_filepath: &str, data_dir: &str) -> Result<(), Box<dyn Error>> {
-    // Setup IO
-    let image_dir = Path::new(data_dir).join("images/border_crop");
-    fs::create_dir_all(&image_dir)?;
-    let input_file = File::open(json_filepath)?;
-    let reader = BufReader::new(input_file);
-    let card_deserializer = serde_json::Deserializer::from_reader(reader);
-
-    // Setup api client
-    let client = blocking::Client::new();
-    let headers = scryfall_headers()?;
-
-    let mut card_count: u32 = 0;
-    let mut download_count: u32 = 0;
-    let mut no_image_count: u32 = 0;
-    let mut cache_count: u32 = 0;
-    let mut error_count: u32 = 0;
-
-    for result in card_deserializer.into_iter::<Card>() {
-        if card_count >= 20 {
-            break;
-        }
-        card_count += 1;
-        let card = match result {
-            Ok(card) => card,
-            Err(e) => {
-                println!("Error reading card from json: {}", e);
-                error_count += 1;
-                continue;
+                // retry on 429 (rate limit) / 5xx
+                let status = r.status();
+                if status.as_u16() == 429 || status.is_server_error() {
+                    if attempt >= max_retries {
+                        return Err(format!("failed after retries: {}", status).into());
+                    }
+                } else {
+                    return Err(format!("bad status: {}", status).into());
+                }
             }
-        };
+            Err(e) => {
+                if attempt >= max_retries {
+                    return Err(Box::new(e));
+                }
+            }
+        }
 
-        // Check if front image already exists in cache
-        let check_filename = format!("{}_0.jpg", card.id);
-        let file_path = Path::new(&image_dir).join(&check_filename);
-        if file_path.try_exists()? {
-            println!(
-                "Exists in cache: {} ({} {})",
-                &card.name, &card.set, &card.collector_number
-            );
-            cache_count += 1;
+        // exponential backoff + jitter
+        let base = 100_u64 * 2_u64.pow(attempt as u32);
+        let jitter = fastrand::u64(..100);
+        tokio::time::sleep(Duration::from_millis(base + jitter)).await;
+    }
+}
+
+async fn process_job(
+    job: Job,
+    client: Client,
+    headers: HeaderMap,
+    limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
+    image_dir: PathBuf,
+) {
+    let all_cached = job.uris.iter().all(|(face, _)| {
+        image_dir
+            .join(format!("{}_{}.jpg", job.id, face))
+            .try_exists()
+            .unwrap_or(false)
+    });
+
+    if all_cached {
+        return;
+    }
+
+    let Some(uris) = Some(job.uris) else {
+        return;
+    };
+
+    for (face, uri) in uris {
+        let path = image_dir.join(format!("{}_{}.jpg", job.id, face));
+
+        if path.try_exists().unwrap_or(false) {
             continue;
         }
 
-        // Find URIs and download front (and back if exists) image(s)
-        if let Some(uris) = get_image_uris(&card) {
-            for uri in uris {
-                println!(
-                    "Downloading: {} ({} {}), face: {}",
-                    &card.name,
-                    &card.set,
-                    &card.collector_number,
-                    match uri.0 {
-                        0 => "front",
-                        1 => "back",
-                        _ => "other",
-                    }
-                );
-                let response = client.get(uri.1).headers(headers.clone()).send()?;
-                if !response.status().is_success() {
-                    return Err(format!("Failed getting image: {}", response.status()).into());
-                }
-                sleep(Duration::from_millis(50));
-                download_count += 1;
-
-                // Save to fs
-                let filename = format!("{}_{}.jpg", card.id, uri.0);
-                let file_path = Path::new(&image_dir).join(&filename);
-                let mut file = fs::File::create(&file_path)?;
-                io::copy(&mut response.bytes()?.as_ref(), &mut file)?;
+        limiter.until_ready().await;
+        println!(
+            "Attempting to download: {} ({} {}), {} face",
+            job.name,
+            job.set,
+            job.number,
+            match face {
+                0 => "front",
+                1 => "back",
+                _ => "other",
             }
-        } else {
-            println!(
-                "No image for: {} ({} {})",
-                &card.name, &card.set, &card.collector_number,
-            );
-            no_image_count += 1;
+        );
+
+        let response = match fetch_with_retry(&client, &uri, &headers, MAX_RETRIES).await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("request error: {e}");
+                return;
+            }
+        };
+
+        let bytes = match response.bytes().await {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("read error: {e}");
+                return;
+            }
+        };
+
+        if let Err(e) = atomic_write(path, &bytes).await {
+            eprintln!("write error: {e}");
         }
     }
+}
 
-    println!("Total cards checked: {}", card_count);
-    println!("Total cards in cache: {}", cache_count);
-    println!("Total cards downloaded: {}", download_count);
-    println!("Total cards with no image: {}", no_image_count);
-    println!("Total cards with error: {}", error_count);
+pub async fn update_images_async(json_filepath: &str, data_dir: &str) -> DynResult<()> {
+    // Setup IO
+    let image_dir = Path::new(data_dir).join("images/border_crop");
+    tokio_fs::create_dir_all(&image_dir).await?;
+    let content = tokio_fs::read_to_string(json_filepath).await?;
+
+    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let headers = scryfall_headers()?;
+    let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
+
+    let jobs: Vec<Job> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .take(20) // TODO: Remove card limit for testing and development
+        .filter_map(|line| serde_json::from_str::<Card>(line).ok())
+        .filter_map(|card| {
+            let uris = get_image_uris(&card.image_uris, &card.card_faces)?;
+            Some(Job {
+                id: card.id,
+                name: card.name,
+                set: card.set,
+                number: card.collector_number,
+                uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
+            })
+        })
+        .collect();
+
+    stream::iter(jobs)
+        .for_each_concurrent(MAX_CONCURRENT, |job| {
+            let client = client.clone();
+            let headers = headers.clone();
+            let limiter = limiter.clone();
+            let image_dir = image_dir.clone();
+
+            async move {
+                process_job(job, client, headers, limiter, image_dir).await;
+            }
+        })
+        .await;
+
+    println!("Done.");
     Ok(())
 }
 
 // Returns vector of (face_number, uri)
-fn get_image_uris(card: &Card) -> Option<Vec<(usize, &str)>> {
+fn get_image_uris(
+    image_uris: &Option<ImageUris>,
+    card_faces: &Option<Vec<CardFace>>,
+) -> Option<Vec<(usize, String)>> {
     // Check if card is single-faced
-    if let Some(uris) = &card.image_uris {
-        Some(vec![(0, &uris.border_crop)])
+    if let Some(uris) = image_uris {
+        Some(vec![(0, uris.border_crop.to_string())])
 
     // Check if card is multi-faced
-    } else if let Some(faces) = &card.card_faces {
-        let mut face_uris: Vec<(usize, &str)> = Vec::new();
+    } else if let Some(faces) = card_faces {
+        let mut face_uris: Vec<(usize, String)> = Vec::new();
 
         for (i, face) in faces.iter().enumerate() {
             if let Some(uris) = &face.image_uris {
-                face_uris.push((i, &uris.border_crop));
+                face_uris.push((i, uris.border_crop.to_string()));
             }
         }
         Some(face_uris)
