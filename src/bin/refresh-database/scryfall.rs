@@ -122,12 +122,12 @@ pub async fn download_bulk_data(url: &str) -> DynResult<String> {
     let mut file = fs::File::create(&file_path)?;
     file.write_all(processed_content.as_bytes())?;
 
-    Ok(format!("{}{}", DATA_DIR, filename))
+    Ok(file_path.to_string_lossy().to_string())
 }
 
-pub async fn update_images_async(json_filepath: &str, data_dir: &str) -> DynResult<()> {
+pub async fn update_images_async(json_filepath: &str) -> DynResult<()> {
     // Setup IO
-    let image_dir = Path::new(data_dir).join("images/border_crop");
+    let image_dir = Path::new(DATA_DIR).join("images/border_crop");
     tokio_fs::create_dir_all(&image_dir).await?;
     let content = tokio_fs::read_to_string(json_filepath).await?;
 
@@ -268,7 +268,7 @@ async fn process_job(
             }
         };
 
-        if let Err(e) = atomic_write(path, &bytes).await {
+        if let Err(e) = atomic_write(&path, &bytes).await {
             eprintln!("write error: {e}");
         }
     }

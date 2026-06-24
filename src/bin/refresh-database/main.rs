@@ -1,9 +1,5 @@
 mod scryfall;
-use std::{
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fs, io::Write, path::Path};
 use tokio::fs as tokio_fs;
 
 use scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images_async};
@@ -39,13 +35,13 @@ async fn main() -> DynResult<()> {
             let filename = current_url
                 .rfind('/')
                 .map(|idx| &current_url[idx + 1..]) // Slice from after the last slash to the end
-                .unwrap_or("data.json");
+                .unwrap_or("data.ndjson");
             format!("{}{}", DATA_DIR, filename)
         }
     };
 
     println!("Updating images...");
-    update_images_async(&json_filepath, DATA_DIR).await?;
+    update_images_async(&json_filepath).await?;
 
     Ok(())
 }
@@ -75,7 +71,7 @@ fn write_stored_url(url: &str) -> DynResult<()> {
     Ok(())
 }
 
-async fn atomic_write(path: PathBuf, bytes: &[u8]) -> DynResult<()> {
+async fn atomic_write(path: &Path, bytes: &[u8]) -> DynResult<()> {
     let tmp_path = path.with_extension("tmp");
 
     tokio_fs::write(&tmp_path, bytes).await?;
