@@ -31,24 +31,23 @@ struct BulkDataMetaItem {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Card {
-    pub id: String,
-    pub name: String,
-    pub set: String,
-    pub collector_number: String,
-    pub image_uris: Option<ImageUris>,
-    pub phash: Option<u64>,
-    pub card_faces: Option<Vec<CardFace>>,
+struct Card {
+    id: String,
+    name: String,
+    set: String,
+    collector_number: String,
+    image_uris: Option<ImageUris>,
+    card_faces: Option<Vec<CardFace>>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CardFace {
-    pub image_uris: Option<ImageUris>,
+struct CardFace {
+    image_uris: Option<ImageUris>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ImageUris {
-    pub border_crop: String,
+struct ImageUris {
+    border_crop: String,
 }
 
 struct Job {
@@ -117,13 +116,57 @@ pub async fn download_bulk_data(url: &str) -> DynResult<String> {
     let filename = url
         .rfind('/')
         .map(|idx| &url[idx + 1..]) // Slice from after the last slash to the end
-        .unwrap_or("data.json");
-    let file_path = Path::new(DATA_DIR).join(filename);
+        .unwrap_or("data.ndjson");
+    let file_path = Path::new(DATA_DIR).join(filename).with_extension("ndjson");
     println!("Saving data to: {}{}", DATA_DIR, filename);
     let mut file = fs::File::create(&file_path)?;
     file.write_all(processed_content.as_bytes())?;
 
     Ok(format!("{}{}", DATA_DIR, filename))
+}
+
+pub async fn update_images_async(json_filepath: &str, data_dir: &str) -> DynResult<()> {
+    // Setup IO
+    let image_dir = Path::new(data_dir).join("images/border_crop");
+    tokio_fs::create_dir_all(&image_dir).await?;
+    let content = tokio_fs::read_to_string(json_filepath).await?;
+
+    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let headers = scryfall_headers()?;
+    let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
+
+    let jobs: Vec<Job> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .take(500) // TODO: Remove card limit for testing and development
+        .filter_map(|line| serde_json::from_str::<Card>(line).ok())
+        .filter_map(|card| {
+            let uris = get_image_uris(&card.image_uris, &card.card_faces)?;
+            Some(Job {
+                id: card.id,
+                name: card.name,
+                set: card.set,
+                number: card.collector_number,
+                uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
+            })
+        })
+        .collect();
+
+    stream::iter(jobs)
+        .for_each_concurrent(MAX_CONCURRENT, |job| {
+            let client = client.clone();
+            let headers = headers.clone();
+            let limiter = limiter.clone();
+            let image_dir = image_dir.clone();
+
+            async move {
+                process_job(job, client, headers, limiter, image_dir).await;
+            }
+        })
+        .await;
+
+    println!("Done.");
+    Ok(())
 }
 
 async fn fetch_with_retry(
@@ -229,50 +272,6 @@ async fn process_job(
             eprintln!("write error: {e}");
         }
     }
-}
-
-pub async fn update_images_async(json_filepath: &str, data_dir: &str) -> DynResult<()> {
-    // Setup IO
-    let image_dir = Path::new(data_dir).join("images/border_crop");
-    tokio_fs::create_dir_all(&image_dir).await?;
-    let content = tokio_fs::read_to_string(json_filepath).await?;
-
-    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
-    let headers = scryfall_headers()?;
-    let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
-
-    let jobs: Vec<Job> = content
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .take(20) // TODO: Remove card limit for testing and development
-        .filter_map(|line| serde_json::from_str::<Card>(line).ok())
-        .filter_map(|card| {
-            let uris = get_image_uris(&card.image_uris, &card.card_faces)?;
-            Some(Job {
-                id: card.id,
-                name: card.name,
-                set: card.set,
-                number: card.collector_number,
-                uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
-            })
-        })
-        .collect();
-
-    stream::iter(jobs)
-        .for_each_concurrent(MAX_CONCURRENT, |job| {
-            let client = client.clone();
-            let headers = headers.clone();
-            let limiter = limiter.clone();
-            let image_dir = image_dir.clone();
-
-            async move {
-                process_job(job, client, headers, limiter, image_dir).await;
-            }
-        })
-        .await;
-
-    println!("Done.");
-    Ok(())
 }
 
 // Returns vector of (face_number, uri)
