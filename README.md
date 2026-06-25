@@ -37,9 +37,9 @@ A Magic: The Gathering card identifier
 
 - On startup:
   - Load phashes into memory
-- Use same normalization steps from database building on input image
-- generate perceptual hash
-- compare linearly with rayon parallelization
+- Use OpenCV to identify a card in input image
+- generate perceptual hash with same hashing function used to build cache.
+- compare input card hash to hash cache with rayon parallelization
   - maybe add some ANN/vector search later if comparison takes too long
 
 ### General
