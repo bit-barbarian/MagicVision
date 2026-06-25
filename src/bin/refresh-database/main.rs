@@ -1,7 +1,7 @@
 mod image_proc;
 mod scryfall;
-use std::{fs, io::Write, path::Path};
-use tokio::fs as tokio_fs;
+use std::path::Path;
+use tokio::{fs, io::AsyncWriteExt};
 
 use crate::image_proc::{load_card_cache, save_card_cache, update_cache_with_jobs};
 use crate::scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
@@ -16,9 +16,9 @@ const DATA_DIR: &str = "/path/to/data/dir";
 async fn main() -> DynResult<()> {
     // Check if bulk data endpoint has updated
     let current_url = get_bulk_data_endpoint(DEFAULT_CARDS_URL).await?;
-    let stored_url = read_stored_url()?;
+    let stored_url = read_stored_url().await?;
     println!("\n           Latest API URL: {}", current_url);
-    if let Ok(Some(url)) = read_stored_url() {
+    if let Ok(Some(url)) = read_stored_url().await {
         println!("Previously downloaded URL: {}\n", url);
     }
 
@@ -30,7 +30,7 @@ async fn main() -> DynResult<()> {
         true => {
             println!("New bulk data avialable!");
             let fp = download_bulk_data(&current_url).await?;
-            write_stored_url(&current_url)?;
+            write_stored_url(&current_url).await?;
             fp
         }
         false => {
@@ -58,13 +58,13 @@ async fn main() -> DynResult<()> {
     Ok(())
 }
 
-fn read_stored_url() -> DynResult<Option<String>> {
+async fn read_stored_url() -> DynResult<Option<String>> {
     let path = Path::new(DATA_DIR).join("last_downloaded_url.txt");
     if !path.exists() {
         return Ok(None);
     }
 
-    let url = fs::read_to_string(path)?.trim().to_string();
+    let url = fs::read_to_string(path).await?.trim().to_string();
 
     if url.is_empty() {
         Ok(None)
@@ -73,20 +73,20 @@ fn read_stored_url() -> DynResult<Option<String>> {
     }
 }
 
-fn write_stored_url(url: &str) -> DynResult<()> {
+async fn write_stored_url(url: &str) -> DynResult<()> {
     let path = Path::new(DATA_DIR).join("last_downloaded_url.txt");
-    fs::create_dir_all(DATA_DIR)?;
+    fs::create_dir_all(DATA_DIR).await?;
 
-    let mut file = fs::File::create(path)?;
-    writeln!(file, "{}", url)?;
-
+    atomic_write(&path, url.as_bytes()).await?;
     Ok(())
 }
 
 async fn atomic_write(path: &Path, bytes: &[u8]) -> DynResult<()> {
     let tmp_path = path.with_extension("tmp");
+    let mut file = fs::File::create(&tmp_path).await?;
 
-    tokio_fs::write(&tmp_path, bytes).await?;
-    tokio_fs::rename(tmp_path, path).await?;
+    file.write_all(bytes).await?;
+    file.sync_all().await?;
+    fs::rename(tmp_path, path).await?;
     Ok(())
 }

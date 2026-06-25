@@ -36,7 +36,7 @@ A Magic: The Gathering card identifier
 ### Matching and recognition
 
 - On startup:
-  - Load u64 phashes into memory (just a vec)
+  - Load phashes into memory
 - Use same normalization steps from database building on input image
 - generate perceptual hash
 - compare linearly with rayon parallelization
