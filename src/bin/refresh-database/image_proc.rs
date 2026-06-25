@@ -85,15 +85,17 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
         .collect();
 
     println!("Hashing new images...");
-    let new_cards: Vec<CachedCard> = missing_jobs
+    let new_cards: Vec<(String, CachedCard)> = missing_jobs
         .par_iter()
-        .filter_map(|job| build_cached_card(job).ok())
+        .filter_map(|job| {
+            build_cached_card(job)
+                .ok()
+                .map(|card| (card.id.clone(), card))
+        })
         .collect();
 
     println!("Adding {} new cards to cache...", new_cards.len());
-    for card in new_cards {
-        cache.insert(card.id.clone(), card);
-    }
+    cache.extend(new_cards);
     Ok(())
 }
 
