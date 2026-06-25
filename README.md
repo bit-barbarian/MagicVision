@@ -8,15 +8,13 @@ A Magic: The Gathering card identifier
 
 - Download bulk data json from scryfall
 - Store in local file (jsonl)
-- Download each image listed in the bulk data (rate limit)
-  - Download border_crop versions
-  - Local filename is card uuid
-- Normalize:
-  - Convert to grayscale
-  - Resize to fixed dimensions?
-  - Apply slight blur or normalization (mean subtraction)
+- Download each image listed in the bulk data (technically no rate limit on scryfall.io)
+  - Download border_crop versions, fall back to normal if border_crop doesn't exist
+  - Local filename is {card_id}\_{face_number}
+  - 0 = front, 1 = back, >1 = other
+- Normalizing is done by crate
 - Hash each image using perceptual hash
-- Add perceptual hash to database entries
+- Add perceptual hash to cache entries
 
 ### Webcam Pipeline
 
