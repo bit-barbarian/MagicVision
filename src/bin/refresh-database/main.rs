@@ -1,6 +1,7 @@
 mod image_proc;
 mod scryfall;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tokio::{fs, io::AsyncWriteExt};
 
 use crate::image_proc::{load_card_cache, save_card_cache, update_cache_with_jobs};
@@ -26,7 +27,7 @@ async fn main() -> DynResult<()> {
         Some(saved) => saved != current_url,
         None => true,
     };
-    let json_filepath = match need_new_download {
+    let json_filepath: PathBuf = match need_new_download {
         true => {
             println!("New bulk data avialable!");
             let fp = download_bulk_data(&current_url).await?;
@@ -34,12 +35,16 @@ async fn main() -> DynResult<()> {
             fp
         }
         false => {
-            println!("No new bulk data.  Checking existing data.");
+            println!("No new bulk data.");
             let filename = current_url
                 .rfind('/')
                 .map(|idx| &current_url[idx + 1..]) // Slice from after the last slash to the end
                 .unwrap_or("data.ndjson");
-            format!("{}{}", DATA_DIR, filename)
+            let fp = PathBuf::from_str(DATA_DIR)?
+                .join(filename)
+                .with_extension("ndjson");
+            println!("Checking local file: {}", fp.to_string_lossy());
+            fp
         }
     };
 

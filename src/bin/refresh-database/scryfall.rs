@@ -17,7 +17,7 @@ use std::{
 };
 use tokio::{
     fs::{self, File},
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, BufReader},
 };
 
 use crate::{DATA_DIR, DynResult, atomic_write};
@@ -88,7 +88,7 @@ pub async fn get_bulk_data_endpoint(url: &str) -> DynResult<String> {
     Ok(bulk_data.download_uri)
 }
 
-pub async fn download_bulk_data(url: &str) -> DynResult<String> {
+pub async fn download_bulk_data(url: &str) -> DynResult<PathBuf> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
@@ -125,13 +125,12 @@ pub async fn download_bulk_data(url: &str) -> DynResult<String> {
         .map(|idx| &url[idx + 1..]) // Slice from after the last slash to the end
         .unwrap_or("data.ndjson");
     let file_path = Path::new(DATA_DIR).join(filename).with_extension("ndjson");
-    println!("Saving data to: {}{}", DATA_DIR, filename);
-    let mut file = File::create(&file_path).await?;
-    file.write_all(processed_content.as_bytes()).await?;
-    Ok(file_path.to_string_lossy().into_owned())
+    println!("Saving data to: {}", &file_path.to_string_lossy());
+    atomic_write(&file_path, processed_content.as_bytes()).await?;
+    Ok(file_path)
 }
 
-pub async fn update_images(json_filepath: &str) -> DynResult<Vec<Job>> {
+pub async fn update_images(json_filepath: &Path) -> DynResult<Vec<Job>> {
     // Setup IO
     let image_dir = Path::new(DATA_DIR).join("images/");
     fs::create_dir_all(&image_dir).await?;
@@ -250,15 +249,6 @@ async fn process_job(
     limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
     image_dir: PathBuf,
 ) {
-    let all_cached = job.uris.iter().all(|(face, _, _)| {
-        job.image_path(&image_dir, face)
-            .try_exists()
-            .unwrap_or(false)
-    });
-    if all_cached {
-        return;
-    }
-
     let uris = &job.uris;
     for (face, uri, fallback_uri) in uris {
         let path = job.image_path(&image_dir, face);
