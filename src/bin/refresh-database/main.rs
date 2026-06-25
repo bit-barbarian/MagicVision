@@ -3,7 +3,8 @@ mod scryfall;
 use std::{fs, io::Write, path::Path};
 use tokio::fs as tokio_fs;
 
-use scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
+use crate::image_proc::{load_card_cache, save_card_cache, update_cache_with_jobs};
+use crate::scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
 
 type DynError = Box<dyn std::error::Error + Send + Sync>;
 type DynResult<T> = Result<T, DynError>;
@@ -42,9 +43,18 @@ async fn main() -> DynResult<()> {
         }
     };
 
-    println!("Updating images...");
-    update_images(&json_filepath).await?;
+    println!("Updating image cache...");
+    let jobs = update_images(&json_filepath).await?;
+    println!("Done updating image cache.");
 
+    println!("Loading hash cache...");
+    let mut cache = load_card_cache().await?;
+    println!("Hash cache loaded.");
+
+    println!("Updating hash cache with new images...");
+    update_cache_with_jobs(&mut cache, &jobs)?;
+    save_card_cache(&cache).await?;
+    println!("Hash cache updated!");
     Ok(())
 }
 

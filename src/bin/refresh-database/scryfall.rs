@@ -20,11 +20,11 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
 };
 
-use crate::{DATA_DIR, DynError, DynResult, atomic_write};
+use crate::{DATA_DIR, DynResult, atomic_write};
 
 const MAX_RETRIES: usize = 3;
-const MAX_CONCURRENT: usize = 10;
-const RATE_LIMIT: NonZeroU32 = NonZeroU32::new(10).unwrap();
+const MAX_CONCURRENT: usize = 20;
+const RATE_LIMIT: NonZeroU32 = NonZeroU32::new(20).unwrap(); // Requests per second
 
 #[derive(Debug, Deserialize)]
 struct BulkDataMetaItem {
@@ -49,17 +49,18 @@ struct CardFace {
 #[derive(Debug, Deserialize)]
 struct ImageUris {
     border_crop: String,
+    normal: String,
 }
 
-struct Job {
-    id: String,
-    name: String,
-    set: String,
-    number: String,
-    uris: Vec<(usize, String)>,
+pub struct Job {
+    pub id: String,
+    pub name: String,
+    pub set: String,
+    pub number: String,
+    pub uris: Vec<(usize, String, String)>, // card_face, border_crop url, normal url
 }
 impl Job {
-    fn image_path(&self, image_dir: &Path, face: &usize) -> PathBuf {
+    pub fn image_path(&self, image_dir: &Path, face: &usize) -> PathBuf {
         image_dir.join(format!("{}_{}.jpg", self.id, face))
     }
 }
@@ -130,9 +131,9 @@ pub async fn download_bulk_data(url: &str) -> DynResult<String> {
     Ok(file_path.to_string_lossy().into_owned())
 }
 
-pub async fn update_images(json_filepath: &str) -> DynResult<()> {
+pub async fn update_images(json_filepath: &str) -> DynResult<Vec<Job>> {
     // Setup IO
-    let image_dir = Path::new(DATA_DIR).join("images/border_crop");
+    let image_dir = Path::new(DATA_DIR).join("images/");
     fs::create_dir_all(&image_dir).await?;
     let file = File::open(json_filepath).await?;
     let reader = BufReader::new(file);
@@ -143,7 +144,12 @@ pub async fn update_images(json_filepath: &str) -> DynResult<()> {
     let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
 
     let mut jobs: Vec<Job> = Vec::new();
-    while let Some(line) = lines.next_line().await? {
+    let mut dev_limiter: u32 = 0;
+    while let Some(line) = lines.next_line().await?
+        && dev_limiter <= 3000
+    {
+        dev_limiter += 1;
+
         if line.trim().is_empty() {
             continue;
         }
@@ -161,11 +167,11 @@ pub async fn update_images(json_filepath: &str) -> DynResult<()> {
             name: card.name,
             set: card.set,
             number: card.collector_number,
-            uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
+            uris,
         });
     }
 
-    stream::iter(jobs)
+    stream::iter(&jobs)
         .for_each_concurrent(MAX_CONCURRENT, |job| {
             let client = client.clone();
             let headers = headers.clone();
@@ -178,59 +184,78 @@ pub async fn update_images(json_filepath: &str) -> DynResult<()> {
         })
         .await;
 
-    println!("Done.");
-    Ok(())
+    Ok(jobs)
 }
 
 async fn fetch_with_retry(
     client: &Client,
-    url: &str,
+    primary_url: &str,
+    fallback_url: &str,
     headers: &HeaderMap,
     max_retries: usize,
-) -> Result<reqwest::Response, DynError> {
-    let mut attempt = 0;
+) -> DynResult<reqwest::Response> {
+    // Use fallback on 404
+    return match try_url(client, primary_url, headers, max_retries).await? {
+        Some(r) => Ok(r),
+        None => try_url(client, fallback_url, headers, max_retries)
+            .await?
+            .ok_or_else(|| "fallback failed after primary 404".into()),
+    };
 
-    loop {
-        attempt += 1;
+    async fn try_url(
+        client: &Client,
+        url: &str,
+        headers: &HeaderMap,
+        max_retries: usize,
+    ) -> DynResult<Option<reqwest::Response>> {
+        let mut attempt = 0;
 
-        match client.get(url).headers(headers.clone()).send().await {
-            Ok(r) => {
-                if r.status().is_success() {
-                    return Ok(r);
-                }
+        loop {
+            attempt += 1;
 
-                // retry on 429 (rate limit) / 5xx
-                let status = r.status();
-                if status.as_u16() == 429 || status.is_server_error() {
-                    if attempt >= max_retries {
-                        return Err(format!("failed after retries: {}", status).into());
+            match client.get(url).headers(headers.clone()).send().await {
+                Ok(r) => {
+                    if r.status().is_success() {
+                        return Ok(Some(r));
                     }
-                } else {
-                    return Err(format!("bad status: {}", status).into());
-                }
-            }
-            Err(e) => {
-                if attempt >= max_retries {
-                    return Err(Box::new(e));
-                }
-            }
-        }
+                    let status = r.status();
 
-        // exponential backoff + jitter
-        let base = 100_u64 * 2_u64.pow(attempt as u32);
-        let jitter = fastrand::u64(..100);
-        tokio::time::sleep(Duration::from_millis(base + jitter)).await;
+                    // Signal to try fallback on 404 (border_crop doesn't exist)
+                    if status.as_u16() == 404 {
+                        return Ok(None);
+                    }
+                    // retry on 429 (rate limit) / 5xx
+                    if status.as_u16() == 429 || status.is_server_error() {
+                        if attempt >= max_retries {
+                            return Err(format!("failed after retries: {}", status).into());
+                        }
+                    } else {
+                        return Err(format!("bad status: {}", status).into());
+                    }
+                }
+                Err(e) => {
+                    if attempt >= max_retries {
+                        return Err(format!("http request error: {}", e).into());
+                    }
+                }
+            }
+
+            // exponential backoff + jitter
+            let base = 100_u64 * 2_u64.pow(attempt as u32);
+            let jitter = fastrand::u64(..100);
+            tokio::time::sleep(Duration::from_millis(base + jitter)).await;
+        }
     }
 }
 
 async fn process_job(
-    job: Job,
+    job: &Job,
     client: Client,
     headers: HeaderMap,
     limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
     image_dir: PathBuf,
 ) {
-    let all_cached = job.uris.iter().all(|(face, _)| {
+    let all_cached = job.uris.iter().all(|(face, _, _)| {
         job.image_path(&image_dir, face)
             .try_exists()
             .unwrap_or(false)
@@ -240,7 +265,7 @@ async fn process_job(
     }
 
     let uris = &job.uris;
-    for (face, uri) in uris {
+    for (face, uri, fallback_uri) in uris {
         let path = job.image_path(&image_dir, face);
         if path.try_exists().unwrap_or(false) {
             continue;
@@ -259,13 +284,14 @@ async fn process_job(
             }
         );
 
-        let response = match fetch_with_retry(&client, uri, &headers, MAX_RETRIES).await {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("request error: {e}");
-                return;
-            }
-        };
+        let response =
+            match fetch_with_retry(&client, uri, fallback_uri, &headers, MAX_RETRIES).await {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("request error: {e}");
+                    return;
+                }
+            };
         let bytes = match response.bytes().await {
             Ok(b) => b,
             Err(e) => {
@@ -283,18 +309,22 @@ async fn process_job(
 fn get_image_uris(
     image_uris: &Option<ImageUris>,
     card_faces: &Option<Vec<CardFace>>,
-) -> Option<Vec<(usize, String)>> {
+) -> Option<Vec<(usize, String, String)>> {
     // Check if card is single-faced
     if let Some(uris) = image_uris {
-        Some(vec![(0, uris.border_crop.to_string())])
+        let primary = uris.border_crop.clone();
+        let fallback = uris.normal.clone();
+        Some(vec![(0, primary, fallback)])
 
     // Check if card is multi-faced
     } else if let Some(faces) = card_faces {
-        let mut face_uris: Vec<(usize, String)> = Vec::new();
+        let mut face_uris: Vec<(usize, String, String)> = Vec::new();
 
         for (i, face) in faces.iter().enumerate() {
             if let Some(uris) = &face.image_uris {
-                face_uris.push((i, uris.border_crop.to_string()));
+                let primary = uris.border_crop.clone();
+                let fallback = uris.normal.clone();
+                face_uris.push((i, primary, fallback));
             }
         }
         Some(face_uris)
