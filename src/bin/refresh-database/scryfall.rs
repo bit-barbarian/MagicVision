@@ -10,14 +10,15 @@ use reqwest::{
 };
 use serde::Deserialize;
 use std::{
-    fs,
-    io::Write,
     num::NonZeroU32,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use tokio::fs as tokio_fs;
+use tokio::{
+    fs::{self, File},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+};
 
 use crate::{DATA_DIR, DynError, DynResult, atomic_write};
 
@@ -56,6 +57,11 @@ struct Job {
     set: String,
     number: String,
     uris: Vec<(usize, String)>,
+}
+impl Job {
+    fn image_path(&self, image_dir: &Path, face: &usize) -> PathBuf {
+        image_dir.join(format!("{}_{}.jpg", self.id, face))
+    }
 }
 
 fn scryfall_headers() -> DynResult<HeaderMap> {
@@ -119,38 +125,45 @@ pub async fn download_bulk_data(url: &str) -> DynResult<String> {
         .unwrap_or("data.ndjson");
     let file_path = Path::new(DATA_DIR).join(filename).with_extension("ndjson");
     println!("Saving data to: {}{}", DATA_DIR, filename);
-    let mut file = fs::File::create(&file_path)?;
-    file.write_all(processed_content.as_bytes())?;
-
-    Ok(file_path.to_string_lossy().to_string())
+    let mut file = File::create(&file_path).await?;
+    file.write_all(processed_content.as_bytes()).await?;
+    Ok(file_path.to_string_lossy().into_owned())
 }
 
-pub async fn update_images_async(json_filepath: &str) -> DynResult<()> {
+pub async fn update_images(json_filepath: &str) -> DynResult<()> {
     // Setup IO
     let image_dir = Path::new(DATA_DIR).join("images/border_crop");
-    tokio_fs::create_dir_all(&image_dir).await?;
-    let content = tokio_fs::read_to_string(json_filepath).await?;
+    fs::create_dir_all(&image_dir).await?;
+    let file = File::open(json_filepath).await?;
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
 
     let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
     let headers = scryfall_headers()?;
     let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
 
-    let jobs: Vec<Job> = content
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .take(500) // TODO: Remove card limit for testing and development
-        .filter_map(|line| serde_json::from_str::<Card>(line).ok())
-        .filter_map(|card| {
-            let uris = get_image_uris(&card.image_uris, &card.card_faces)?;
-            Some(Job {
-                id: card.id,
-                name: card.name,
-                set: card.set,
-                number: card.collector_number,
-                uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
-            })
-        })
-        .collect();
+    let mut jobs: Vec<Job> = Vec::new();
+    while let Some(line) = lines.next_line().await? {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let Ok(card) = serde_json::from_str::<Card>(&line) else {
+            continue;
+        };
+
+        let Some(uris) = get_image_uris(&card.image_uris, &card.card_faces) else {
+            continue;
+        };
+
+        jobs.push(Job {
+            id: card.id,
+            name: card.name,
+            set: card.set,
+            number: card.collector_number,
+            uris: uris.into_iter().map(|(i, u)| (i, u.to_string())).collect(),
+        });
+    }
 
     stream::iter(jobs)
         .for_each_concurrent(MAX_CONCURRENT, |job| {
@@ -218,23 +231,17 @@ async fn process_job(
     image_dir: PathBuf,
 ) {
     let all_cached = job.uris.iter().all(|(face, _)| {
-        image_dir
-            .join(format!("{}_{}.jpg", job.id, face))
+        job.image_path(&image_dir, face)
             .try_exists()
             .unwrap_or(false)
     });
-
     if all_cached {
         return;
     }
 
-    let Some(uris) = Some(job.uris) else {
-        return;
-    };
-
+    let uris = &job.uris;
     for (face, uri) in uris {
-        let path = image_dir.join(format!("{}_{}.jpg", job.id, face));
-
+        let path = job.image_path(&image_dir, face);
         if path.try_exists().unwrap_or(false) {
             continue;
         }
@@ -252,14 +259,13 @@ async fn process_job(
             }
         );
 
-        let response = match fetch_with_retry(&client, &uri, &headers, MAX_RETRIES).await {
+        let response = match fetch_with_retry(&client, uri, &headers, MAX_RETRIES).await {
             Ok(r) => r,
             Err(e) => {
                 eprintln!("request error: {e}");
                 return;
             }
         };
-
         let bytes = match response.bytes().await {
             Ok(b) => b,
             Err(e) => {
@@ -267,7 +273,6 @@ async fn process_job(
                 return;
             }
         };
-
         if let Err(e) = atomic_write(&path, &bytes).await {
             eprintln!("write error: {e}");
         }

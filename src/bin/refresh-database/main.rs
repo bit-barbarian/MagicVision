@@ -1,8 +1,9 @@
+mod image_proc;
 mod scryfall;
 use std::{fs, io::Write, path::Path};
 use tokio::fs as tokio_fs;
 
-use scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images_async};
+use scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
 
 type DynError = Box<dyn std::error::Error + Send + Sync>;
 type DynResult<T> = Result<T, DynError>;
@@ -27,8 +28,9 @@ async fn main() -> DynResult<()> {
     let json_filepath = match need_new_download {
         true => {
             println!("New bulk data avialable!");
+            let fp = download_bulk_data(&current_url).await?;
             write_stored_url(&current_url)?;
-            download_bulk_data(&current_url).await?
+            fp
         }
         false => {
             println!("No new bulk data.  Checking existing data.");
@@ -41,7 +43,7 @@ async fn main() -> DynResult<()> {
     };
 
     println!("Updating images...");
-    update_images_async(&json_filepath).await?;
+    update_images(&json_filepath).await?;
 
     Ok(())
 }
