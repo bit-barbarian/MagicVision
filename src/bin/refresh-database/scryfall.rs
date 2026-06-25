@@ -144,12 +144,7 @@ pub async fn update_images(json_filepath: &str) -> DynResult<Vec<Job>> {
     let limiter = Arc::new(RateLimiter::direct(Quota::per_second(RATE_LIMIT)));
 
     let mut jobs: Vec<Job> = Vec::new();
-    let mut dev_limiter: u32 = 0;
-    while let Some(line) = lines.next_line().await?
-        && dev_limiter <= 3000
-    {
-        dev_limiter += 1;
-
+    while let Some(line) = lines.next_line().await? {
         if line.trim().is_empty() {
             continue;
         }
