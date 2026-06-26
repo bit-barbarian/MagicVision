@@ -4,15 +4,16 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 use tokio::fs;
+use uuid::Uuid;
 
 use crate::scryfall::Job;
 use crate::{DATA_DIR, DynResult, atomic_write};
 
-pub type CardCache = HashMap<String, CachedCard>;
+pub type CardCache = HashMap<Uuid, CachedCard>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedCard {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub set: String,
     pub number: String,
@@ -20,7 +21,7 @@ pub struct CachedCard {
 }
 impl CachedCard {
     pub fn new(
-        id: String,
+        id: Uuid,
         name: String,
         set: String,
         number: String,
@@ -34,6 +35,12 @@ impl CachedCard {
             faces,
         }
     }
+}
+
+pub struct MatchEntry {
+    pub hash: [u8; 32],
+    pub card_id: Uuid,
+    pub face: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,18 +92,27 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
         .collect();
 
     println!("Hashing new images...");
-    let new_cards: Vec<(String, CachedCard)> = missing_jobs
+    let new_cards: Vec<(Uuid, CachedCard)> = missing_jobs
         .par_iter()
-        .filter_map(|job| {
-            build_cached_card(job)
-                .ok()
-                .map(|card| (card.id.clone(), card))
-        })
+        .filter_map(|job| build_cached_card(job).ok().map(|card| (card.id, card)))
         .collect();
 
     println!("Adding {} new cards to cache...", new_cards.len());
     cache.extend(new_cards);
     Ok(())
+}
+
+pub fn build_matching_structure_from_cache(cache: &mut CardCache) -> Vec<MatchEntry> {
+    cache
+        .par_iter()
+        .flat_map_iter(|(_, card)| {
+            card.faces.iter().map(move |face| MatchEntry {
+                hash: face.phash,
+                card_id: card.id,
+                face: face.face,
+            })
+        })
+        .collect()
 }
 
 fn build_cached_card(job: &Job) -> DynResult<CachedCard> {
@@ -117,7 +133,7 @@ fn build_cached_card(job: &Job) -> DynResult<CachedCard> {
         .collect::<DynResult<_>>()?;
 
     Ok(CachedCard::new(
-        job.id.clone(),
+        job.id,
         job.name.clone(),
         job.set.clone(),
         job.number.clone(),

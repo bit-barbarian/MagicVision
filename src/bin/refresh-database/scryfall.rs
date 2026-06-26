@@ -19,6 +19,7 @@ use tokio::{
     fs::{self, File},
     io::{AsyncBufReadExt, BufReader},
 };
+use uuid::Uuid;
 
 use crate::{DATA_DIR, DynResult, atomic_write};
 
@@ -33,7 +34,7 @@ struct BulkDataMetaItem {
 
 #[derive(Debug, Deserialize)]
 struct Card {
-    id: String,
+    id: Uuid,
     name: String,
     set: String,
     collector_number: String,
@@ -53,7 +54,7 @@ struct ImageUris {
 }
 
 pub struct Job {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub set: String,
     pub number: String,
