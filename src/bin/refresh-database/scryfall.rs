@@ -58,10 +58,10 @@ pub struct Job {
     pub name: String,
     pub set: String,
     pub number: String,
-    pub uris: Vec<(usize, String, String)>, // card_face, border_crop url, normal url
+    pub uris: Vec<(u8, String, String)>, // card_face, border_crop url, normal url
 }
 impl Job {
-    pub fn image_path(&self, image_dir: &Path, face: &usize) -> PathBuf {
+    pub fn image_path(&self, image_dir: &Path, face: &u8) -> PathBuf {
         image_dir.join(format!("{}_{}.jpg", self.id, face))
     }
 }
@@ -295,7 +295,7 @@ async fn process_job(
 fn get_image_uris(
     image_uris: &Option<ImageUris>,
     card_faces: &Option<Vec<CardFace>>,
-) -> Option<Vec<(usize, String, String)>> {
+) -> Option<Vec<(u8, String, String)>> {
     // Check if card is single-faced
     if let Some(uris) = image_uris {
         let primary = uris.border_crop.clone();
@@ -304,13 +304,14 @@ fn get_image_uris(
 
     // Check if card is multi-faced
     } else if let Some(faces) = card_faces {
-        let mut face_uris: Vec<(usize, String, String)> = Vec::new();
+        let mut face_uris: Vec<(u8, String, String)> = Vec::new();
 
         for (i, face) in faces.iter().enumerate() {
+            let face_num = u8::try_from(i).expect("Card has more than 255 faces.");
             if let Some(uris) = &face.image_uris {
                 let primary = uris.border_crop.clone();
                 let fallback = uris.normal.clone();
-                face_uris.push((i, primary, fallback));
+                face_uris.push((face_num, primary, fallback));
             }
         }
         Some(face_uris)

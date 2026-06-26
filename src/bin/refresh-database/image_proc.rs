@@ -40,17 +40,17 @@ impl CachedCard {
 pub struct MatchEntry {
     pub hash: [u8; 32],
     pub card_id: Uuid,
-    pub face: usize,
+    pub face: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedFace {
-    pub face: usize,
+    pub face: u8,
     pub image_path: PathBuf,
     pub phash: [u8; 32],
 }
 impl CachedFace {
-    pub fn new(face: usize, image_path: &Path, hasher: &Hasher) -> DynResult<Self> {
+    pub fn new(face: u8, image_path: &Path, hasher: &Hasher) -> DynResult<Self> {
         Ok(Self {
             face,
             image_path: image_path.into(),
@@ -102,14 +102,14 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
     Ok(())
 }
 
-pub fn build_matching_structure_from_cache(cache: &mut CardCache) -> Vec<MatchEntry> {
+pub fn build_matching_structure_from_cache(cache: &CardCache) -> Vec<MatchEntry> {
     cache
         .par_iter()
         .flat_map_iter(|(_, card)| {
             card.faces.iter().map(move |face| MatchEntry {
                 hash: face.phash,
                 card_id: card.id,
-                face: face.face,
+                face: face.face as u8,
             })
         })
         .collect()
