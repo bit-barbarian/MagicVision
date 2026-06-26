@@ -47,3 +47,30 @@ A Magic: The Gathering card identifier
 - Run webcam pipeline on its own thread and pass frames to the main thread in a
   small queue (dropping old frames when queue overflows).
 - crossbeam::channel::bounded for message queue?
+
+```ascii
+              Camera Thread
+          ┌────────────────────┐
+          │ VideoCapture.read  │
+          └─────────┬──────────┘
+                    │
+            bounded channel (2)
+                    │
+                    ▼
+           Recognition Thread
+    ┌──────────────────────────────┐
+    │ grayscale                    │
+    │ blur                         │
+    │ canny                        │
+    │ contours                     │
+    │ perspective warp             │
+    │ perceptual hash              │
+    │ parallel MatchEntry search   │
+    └──────────────┬───────────────┘
+                   │
+                   ▼
+          Draw result on frame
+                   │
+                   ▼
+                imshow()
+```
