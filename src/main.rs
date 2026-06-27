@@ -15,13 +15,17 @@ fn main() -> opencv::Result<()> {
     let (recognition_handle, recognition_rx) = init_rec_thread(camera_rx, is_running.clone());
 
     highgui::named_window("MagicVision", highgui::WINDOW_NORMAL)?;
+    highgui::named_window("WarpFrame", highgui::WINDOW_NORMAL)?;
 
     loop {
-        let Ok(result) = recognition_rx.try_recv() else {
+        let Ok((result, warp_frame)) = recognition_rx.try_recv() else {
             continue;
         };
 
         highgui::imshow("MagicVision", &result.frame)?;
+        if let Some(wf) = warp_frame {
+            highgui::imshow("WarpFrame", &wf.frame)?;
+        }
         if highgui::wait_key(1)? == 'q' as i32 {
             break;
         }
