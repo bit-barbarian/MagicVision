@@ -77,6 +77,25 @@ impl CardDetection {
             Point::new(0, 0),
         )?;
 
+        Ok(())
+    }
+
+    pub fn _draw_detailed(&self, frame: &mut Mat) -> Result<()> {
+        let mut contours = Vector::<Vector<Point>>::new();
+        contours.push(self.contour.clone());
+        // Draw contour
+        imgproc::draw_contours(
+            frame,
+            &contours,
+            -1,
+            Scalar::new(0.0, 255.0, 0.0, 0.0),
+            2,
+            imgproc::LINE_AA,
+            &opencv::core::no_array(),
+            i32::MAX,
+            Point::new(0, 0),
+        )?;
+
         // Draw polygon
         for i in 0..4 {
             let a = self.corners[i];
