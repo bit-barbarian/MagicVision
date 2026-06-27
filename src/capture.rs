@@ -24,7 +24,7 @@ impl Camera {
     pub fn open(index: i32) -> opencv::Result<Self> {
         let mut camera = VideoCapture::new(index, videoio::CAP_ANY)?;
         if !camera.is_opened()? {
-            panic!("Couldn't open camera");
+            return Err(opencv::Error::new(1, "Unable to open camera!"));
         }
         camera.set(videoio::CAP_PROP_FRAME_WIDTH, 1920.0)?;
         camera.set(videoio::CAP_PROP_FRAME_HEIGHT, 1080.0)?;
