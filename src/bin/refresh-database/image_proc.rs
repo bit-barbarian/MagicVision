@@ -92,9 +92,17 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
         .collect();
 
     println!("Hashing new images...");
+    let hasher = HasherConfig::new()
+        .hash_alg(HashAlg::Gradient)
+        .hash_size(16, 16)
+        .to_hasher();
     let new_cards: Vec<(Uuid, CachedCard)> = missing_jobs
         .par_iter()
-        .filter_map(|job| build_cached_card(job).ok().map(|card| (card.id, card)))
+        .filter_map(|job| {
+            build_cached_card(job, &hasher)
+                .ok()
+                .map(|card| (card.id, card))
+        })
         .collect();
 
     println!("Adding {} new cards to cache...", new_cards.len());
@@ -102,7 +110,7 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
     Ok(())
 }
 
-pub fn build_matching_structure_from_cache(cache: &CardCache) -> Vec<MatchEntry> {
+pub fn build_matching_database_from_cache(cache: &CardCache) -> Vec<MatchEntry> {
     cache
         .par_iter()
         .flat_map_iter(|(_, card)| {
@@ -115,12 +123,7 @@ pub fn build_matching_structure_from_cache(cache: &CardCache) -> Vec<MatchEntry>
         .collect()
 }
 
-fn build_cached_card(job: &Job) -> DynResult<CachedCard> {
-    let hasher = HasherConfig::new()
-        .hash_alg(HashAlg::Gradient)
-        .hash_size(16, 16)
-        .to_hasher();
-
+fn build_cached_card(job: &Job, hasher: &Hasher) -> DynResult<CachedCard> {
     let image_dir = Path::new(DATA_DIR).join("images/");
 
     let faces: Vec<CachedFace> = job
@@ -128,7 +131,7 @@ fn build_cached_card(job: &Job) -> DynResult<CachedCard> {
         .iter()
         .map(|(face_num, _, _)| {
             let image_path = job.image_path(&image_dir, face_num);
-            CachedFace::new(*face_num, &image_path, &hasher)
+            CachedFace::new(*face_num, &image_path, hasher)
         })
         .collect::<DynResult<_>>()?;
 
