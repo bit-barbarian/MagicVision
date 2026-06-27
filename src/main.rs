@@ -1,10 +1,14 @@
 mod capture;
 mod messages;
 mod recognition;
+use crossbeam::channel::RecvTimeoutError;
 use opencv::highgui;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 
 use crate::{capture::init_cam_thread, recognition::init::init_rec_thread};
@@ -18,17 +22,19 @@ fn main() -> opencv::Result<()> {
     highgui::named_window("WarpFrame", highgui::WINDOW_NORMAL)?;
 
     loop {
-        let Ok((result, warp_frame)) = recognition_rx.try_recv() else {
-            continue;
+        match recognition_rx.recv_timeout(Duration::from_millis(10)) {
+            Ok((result, warp_frame)) => {
+                highgui::imshow("MagicVision", &result.frame)?;
+                if let Some(wf) = warp_frame {
+                    highgui::imshow("WarpFrame", &wf.frame)?;
+                }
+                if highgui::wait_key(1)? == 'q' as i32 {
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => break,
         };
-
-        highgui::imshow("MagicVision", &result.frame)?;
-        if let Some(wf) = warp_frame {
-            highgui::imshow("WarpFrame", &wf.frame)?;
-        }
-        if highgui::wait_key(1)? == 'q' as i32 {
-            break;
-        }
     }
 
     is_running.store(false, Ordering::Relaxed);
