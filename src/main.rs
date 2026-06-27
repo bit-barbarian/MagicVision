@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use crate::{capture::init_cam_thread, recognition::init_rec_thread};
+use crate::{capture::init_cam_thread, recognition::init::init_rec_thread};
 
 fn main() -> opencv::Result<()> {
     let is_running = Arc::new(AtomicBool::new(true));
