@@ -109,7 +109,7 @@ pub fn build_matching_structure_from_cache(cache: &CardCache) -> Vec<MatchEntry>
             card.faces.iter().map(move |face| MatchEntry {
                 hash: face.phash,
                 card_id: card.id,
-                face: face.face as u8,
+                face: face.face,
             })
         })
         .collect()
