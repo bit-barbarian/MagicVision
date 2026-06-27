@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+crossbeam = "0.8.4"
 fastrand = "2.4.1"
 futures = "0.3.32"
 governor = "0.10.4"

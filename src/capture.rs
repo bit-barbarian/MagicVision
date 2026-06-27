@@ -1,5 +1,20 @@
-use opencv::prelude::*;
-use opencv::videoio::{self, VideoCapture};
+use crossbeam::channel;
+use crossbeam::channel::Receiver;
+use opencv::{
+    Result,
+    prelude::*,
+    videoio::{self, VideoCapture},
+};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Instant,
+};
+
+use crate::messages::CameraFrame;
 
 pub struct Camera {
     capture: VideoCapture,
@@ -26,4 +41,28 @@ impl Camera {
             Ok(frame)
         }
     }
+}
+
+pub fn init_cam_thread(
+    is_running: Arc<AtomicBool>,
+) -> (thread::JoinHandle<Result<()>>, Receiver<CameraFrame>) {
+    let (tx, rx) = channel::bounded(2);
+
+    let handle = thread::spawn(move || -> Result<()> {
+        let mut camera = Camera::open(0)?;
+
+        while is_running.load(Ordering::Relaxed) {
+            let frame = camera.next_frame()?;
+
+            let msg = CameraFrame {
+                frame,
+                timestamp: Instant::now(),
+            };
+
+            let _ = tx.try_send(msg);
+        }
+        Ok(())
+    });
+
+    (handle, rx)
 }
