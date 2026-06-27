@@ -1,6 +1,9 @@
 use opencv::{
     Result,
-    core::{AlgorithmHint::ALGO_HINT_DEFAULT, BORDER_DEFAULT, Mat, Point, Point2f, Size, Vector},
+    core::{
+        AlgorithmHint::ALGO_HINT_DEFAULT, BORDER_CONSTANT, BORDER_DEFAULT, Mat, Point, Point2f,
+        Size, Vector,
+    },
     imgproc,
 };
 
@@ -8,7 +11,6 @@ use crate::recognition::card_detection::CardDetection;
 
 pub fn preprocess(frame: &Mat) -> Result<Mat> {
     let mut gray = Mat::default();
-
     imgproc::cvt_color(
         frame,
         &mut gray,
@@ -18,7 +20,6 @@ pub fn preprocess(frame: &Mat) -> Result<Mat> {
     )?;
 
     let mut blur = Mat::default();
-
     imgproc::gaussian_blur(
         &gray,
         &mut blur,
@@ -30,10 +31,25 @@ pub fn preprocess(frame: &Mat) -> Result<Mat> {
     )?;
 
     let mut edges = Mat::default();
-
     imgproc::canny(&blur, &mut edges, 80.0, 130.0, 3, true)?;
 
-    Ok(edges)
+    let mut dilated = Mat::default();
+    let kernel = imgproc::get_structuring_element(
+        imgproc::MORPH_ELLIPSE,
+        Size::new(3, 3),
+        Point::new(-1, -1),
+    )?;
+    imgproc::dilate(
+        &edges,
+        &mut dilated,
+        &kernel,
+        Point::new(-1, -1),
+        2,
+        BORDER_CONSTANT,
+        imgproc::morphology_default_border_value()?,
+    )?;
+
+    Ok(dilated)
 }
 
 pub fn detect_card(frame: &Mat) -> Result<Option<CardDetection>> {
