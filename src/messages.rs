@@ -6,6 +6,7 @@ pub struct CameraFrame {
 }
 
 pub struct RecognitionFrame {
-    pub frame: Mat,
+    pub display_frame: Mat,
+    pub warped_frame: Option<Mat>,
     pub card_id: Option<uuid::Uuid>,
 }

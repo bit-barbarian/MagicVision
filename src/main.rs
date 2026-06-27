@@ -23,10 +23,10 @@ fn main() -> opencv::Result<()> {
 
     loop {
         match recognition_rx.recv_timeout(Duration::from_millis(10)) {
-            Ok((result, warp_frame)) => {
-                highgui::imshow("MagicVision", &result.frame)?;
-                if let Some(wf) = warp_frame {
-                    highgui::imshow("WarpFrame", &wf.frame)?;
+            Ok(result) => {
+                highgui::imshow("MagicVision", &result.display_frame)?;
+                if let Some(wf) = result.warped_frame {
+                    highgui::imshow("WarpFrame", &wf)?;
                 }
                 if highgui::wait_key(1)? == 'q' as i32 {
                     break;
