@@ -20,27 +20,30 @@ A Magic: The Gathering card identifier
 ### Webcam Pipeline
 
 - Capture frame
+
+### Recognition and Matching
+
+- On thread startup:
+  - Load phashes into memory
 - Card detection (OpenCV):
   - Convert to grayscale
   - Slight gaussian blur
   - Canny edge detection
+  - dilate edges
   - Find contours
-  - approxpolydp for 4 corners?
+  - approxpolydp filter for 4 corners and card ratio
   - if no card found, skip frame
 - Perspective normalization:
-  - input 4 corners
-  - imgproc::warpPerspective on pre-blur grayscale image (not canny) flatten
-    to rectangle
-- Output grayscale rectangle from warped perspective
-
-### Matching and recognition
-
-- On startup:
-  - Load phashes into memory
-- Use OpenCV to identify a card in input image
+  - Input 4 corners
+  - Output rectangle from original unprocessed frame with warped perspective points
+    (image_hasher handles preprocessing, same as cache builder)
 - generate perceptual hash with same hashing function used to build cache.
 - compare input card hash to hash cache with rayon parallelization
   - maybe add some ANN/vector search later if comparison takes too long
+  - Hierarchical navigable small world
+- Return:
+  - Original frame drawn over with contour highlighting detected card
+  - MatchEntry
 
 ### General
 
@@ -72,5 +75,6 @@ A Magic: The Gathering card identifier
           Draw result on frame
                    │
                    ▼
-                imshow()
+            UI (main) thread
+               imshow()
 ```
