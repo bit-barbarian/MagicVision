@@ -1,7 +1,6 @@
 use image_hasher::Hasher;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::Path, path::PathBuf};
 use tokio::fs;
 use uuid::Uuid;
 
