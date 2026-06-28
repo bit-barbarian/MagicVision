@@ -1,3 +1,4 @@
+use image_hasher::{HashAlg, Hasher, HasherConfig};
 use rayon::prelude::*;
 use uuid::Uuid;
 
@@ -27,4 +28,11 @@ impl MatchDatabase {
                 .collect(),
         }
     }
+}
+
+pub fn get_hasher() -> Hasher {
+    HasherConfig::new()
+        .hash_alg(HashAlg::Gradient)
+        .hash_size(16, 16)
+        .to_hasher()
 }

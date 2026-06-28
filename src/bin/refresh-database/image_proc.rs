@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use crate::scryfall::Job;
 use magicvision::{
-    cache::card_cache::{CachedCard, CachedFace, CardCache},
+    cache::{
+        card_cache::{CachedCard, CachedFace, CardCache},
+        matching::get_hasher,
+    },
     constants::DATA_DIR,
     types::DynResult,
 };
@@ -18,10 +21,7 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
         .collect();
 
     println!("Hashing new images...");
-    let hasher = HasherConfig::new()
-        .hash_alg(HashAlg::Gradient)
-        .hash_size(16, 16)
-        .to_hasher();
+    let hasher = get_hasher();
     let new_cards: Vec<(Uuid, CachedCard)> = missing_jobs
         .par_iter()
         .filter_map(|job| {
