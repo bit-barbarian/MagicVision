@@ -21,7 +21,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::{DATA_DIR, DynResult, atomic_write};
+use magicvision::{cache::atomic_write::atomic_write, constants::DATA_DIR, types::DynResult};
 
 const MAX_RETRIES: usize = 3;
 const MAX_CONCURRENT: usize = 20;

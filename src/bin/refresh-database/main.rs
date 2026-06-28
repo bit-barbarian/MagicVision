@@ -2,16 +2,18 @@ mod image_proc;
 mod scryfall;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::fs;
 
-use crate::image_proc::{load_card_cache, save_card_cache, update_cache_with_jobs};
+use crate::image_proc::update_cache_with_jobs;
 use crate::scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
-
-type DynError = Box<dyn std::error::Error + Send + Sync>;
-type DynResult<T> = Result<T, DynError>;
+use magicvision::{
+    cache::atomic_write::atomic_write,
+    cache::card_cache::{load_card_cache, save_card_cache},
+    constants::DATA_DIR,
+    types::DynResult,
+};
 
 const DEFAULT_CARDS_URL: &str = "https://api.scryfall.com/bulk-data/default_cards";
-const DATA_DIR: &str = "/path/to/data/dir";
 
 #[tokio::main]
 async fn main() -> DynResult<()> {
@@ -83,15 +85,5 @@ async fn write_stored_url(url: &str) -> DynResult<()> {
     fs::create_dir_all(DATA_DIR).await?;
 
     atomic_write(&path, url.as_bytes()).await?;
-    Ok(())
-}
-
-async fn atomic_write(path: &Path, bytes: &[u8]) -> DynResult<()> {
-    let tmp_path = path.with_extension("tmp");
-    let mut file = fs::File::create(&tmp_path).await?;
-
-    file.write_all(bytes).await?;
-    file.sync_all().await?;
-    fs::rename(tmp_path, path).await?;
     Ok(())
 }
