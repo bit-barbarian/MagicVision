@@ -1,4 +1,4 @@
-use image_hasher::{HashAlg, Hasher, HasherConfig};
+use image_hasher::Hasher;
 use rayon::prelude::*;
 use std::path::Path;
 use uuid::Uuid;

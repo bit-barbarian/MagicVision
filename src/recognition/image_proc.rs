@@ -1,13 +1,15 @@
+use image::{DynamicImage, ImageBuffer, Rgb};
+use image_hasher::{Hasher, ImageHash};
 use opencv::{
     Result,
     core::{
-        AlgorithmHint::ALGO_HINT_DEFAULT, BORDER_CONSTANT, BORDER_DEFAULT, Mat, Point, Point2f,
-        Size, Vector,
+        AlgorithmHint::ALGO_HINT_DEFAULT, BORDER_CONSTANT, BORDER_DEFAULT, Mat, MatTraitConst,
+        MatTraitConstManual, Point, Point2f, Size, Vector,
     },
     imgproc,
 };
 
-use crate::recognition::card_detection::CardDetection;
+use crate::{recognition::card_detection::CardDetection, types::DynResult};
 
 pub fn preprocess(frame: &Mat) -> Result<Mat> {
     let mut gray = Mat::default();
@@ -127,4 +129,25 @@ pub fn detect_card(frame: &Mat) -> Result<Option<CardDetection>> {
         ))),
         None => Ok(None),
     }
+}
+
+pub fn hash_mat(mat: &Mat, hasher: &Hasher) -> DynResult<ImageHash> {
+    let image = mat_to_dynamic_image(mat)?;
+    Ok(hasher.hash_image(&image))
+}
+
+fn mat_to_dynamic_image(mat: &Mat) -> opencv::Result<DynamicImage> {
+    // Convert from BGR (opencv) to RGB (image)
+    let mut rgb = Mat::default();
+    imgproc::cvt_color(mat, &mut rgb, imgproc::COLOR_BGR2RGB, 0, ALGO_HINT_DEFAULT)?;
+
+    let width = rgb.cols();
+    let height = rgb.rows();
+
+    let bytes = rgb.data_bytes()?.to_vec();
+
+    let image = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(width as u32, height as u32, bytes)
+        .expect("unexpected image dimensions");
+
+    Ok(DynamicImage::ImageRgb8(image))
 }
