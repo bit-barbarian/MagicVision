@@ -1,7 +1,6 @@
 use crossbeam::channel;
 use crossbeam::channel::Receiver;
 use opencv::{
-    Result,
     prelude::*,
     videoio::{self, VideoCapture},
 };
@@ -14,17 +13,17 @@ use std::{
     time::Instant,
 };
 
-use crate::messages::CameraFrame;
+use crate::{messages::CameraFrame, types::DynResult};
 
 pub struct Camera {
     capture: VideoCapture,
 }
 
 impl Camera {
-    pub fn open(index: i32) -> opencv::Result<Self> {
+    pub fn open(index: i32) -> DynResult<Self> {
         let mut camera = VideoCapture::new(index, videoio::CAP_ANY)?;
         if !camera.is_opened()? {
-            return Err(opencv::Error::new(1, "Unable to open camera!"));
+            return Err("Unable to open camera!".into());
         }
         camera.set(videoio::CAP_PROP_FRAME_WIDTH, 1920.0)?;
         camera.set(videoio::CAP_PROP_FRAME_HEIGHT, 1080.0)?;
@@ -45,10 +44,10 @@ impl Camera {
 
 pub fn init_cam_thread(
     is_running: Arc<AtomicBool>,
-) -> (thread::JoinHandle<Result<()>>, Receiver<CameraFrame>) {
+) -> (thread::JoinHandle<DynResult<()>>, Receiver<CameraFrame>) {
     let (tx, rx) = channel::bounded(2);
 
-    let handle = thread::spawn(move || -> Result<()> {
+    let handle = thread::spawn(move || -> DynResult<()> {
         let mut camera = Camera::open(0)?;
 
         while is_running.load(Ordering::Relaxed) {
