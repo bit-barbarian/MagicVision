@@ -68,7 +68,7 @@ impl Job {
 
 fn scryfall_headers() -> DynResult<HeaderMap> {
     let mut headers = HeaderMap::new();
-    headers.insert(USER_AGENT, HeaderValue::from_str("MagicVision/0.1.0")?);
+    headers.insert(USER_AGENT, HeaderValue::from_str("MagicVision/0.2.0")?);
     headers.insert(ACCEPT, HeaderValue::from_str("application/json")?);
     Ok(headers)
 }

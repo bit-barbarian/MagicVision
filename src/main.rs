@@ -50,14 +50,14 @@ async fn main() -> DynResult<()> {
                     break;
                 }
 
-                execute!(io::stdout(), Clear(ClearType::All))?;
-
                 for (i, m) in result.matches.iter().enumerate() {
                     if let Some(card) = cache.get(&m.card_id) {
                         println!("Match #{}: {} ({} {})", i, card.name, card.set, card.number);
                         println!("Distance:  {}", m.distance);
                     };
                 }
+
+                execute!(io::stdout(), Clear(ClearType::All))?;
             }
             Err(RecvTimeoutError::Timeout) => continue,
             Err(RecvTimeoutError::Disconnected) => break,
