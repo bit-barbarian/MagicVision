@@ -56,7 +56,7 @@ impl Engine {
     }
 }
 
-pub fn init_rec_thread(
+fn init_rec_thread(
     cam_rx: Receiver<CameraFrame>,
     is_running: Arc<AtomicBool>,
     match_db: MatchDatabase,
