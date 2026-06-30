@@ -1,5 +1,4 @@
 mod cache;
-mod capture;
 mod constants;
 mod messages;
 mod recognition;

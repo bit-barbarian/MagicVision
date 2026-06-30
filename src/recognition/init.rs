@@ -10,13 +10,16 @@ use std::{
     time::Duration,
 };
 
-use crate::cache::card_cache::{CardCache, load_card_cache};
-use crate::cache::matching::MatchResult;
-use crate::capture::init_cam_thread;
 use crate::{
-    cache::matching::{MatchDatabase, get_hasher},
+    cache::{
+        card_cache::{CardCache, load_card_cache},
+        matching::{MatchDatabase, MatchResult, get_hasher},
+    },
     messages::{CameraFrame, RecognitionFrame},
-    recognition::image_proc::{detect_card, hash_mat, preprocess},
+    recognition::{
+        capture::init_cam_thread,
+        image_proc::{detect_card, hash_mat, preprocess},
+    },
     types::DynResult,
 };
 

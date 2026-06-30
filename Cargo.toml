@@ -7,10 +7,12 @@ edition = "2024"
 arrayvec = "0.7.7"
 crossbeam = "0.8.4"
 crossterm = "0.29.0"
+eframe = "0.35.0"
+egui = "0.35.0"
+egui_extras = { version = "0.35.0", features = ["image"] }
 fastrand = "2.4.1"
 futures = "0.3.32"
 governor = "0.10.4"
-iced = "0.14.0"
 image = "0.25.10"
 image_hasher = { version = "3.1.1", features = ["fast_resize_unstable"] }
 opencv = "0.99.0"

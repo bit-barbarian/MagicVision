@@ -20,7 +20,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn open(index: i32) -> DynResult<Self> {
+    fn open(index: i32) -> DynResult<Self> {
         let mut camera = VideoCapture::new(index, videoio::CAP_ANY)?;
         if !camera.is_opened()? {
             return Err("Unable to open camera!".into());
@@ -30,7 +30,7 @@ impl Camera {
         Ok(Camera { capture: camera })
     }
 
-    pub fn next_frame(&mut self) -> opencv::Result<Mat> {
+    fn next_frame(&mut self) -> opencv::Result<Mat> {
         let mut frame = Mat::default();
         self.capture.read(&mut frame)?;
 
