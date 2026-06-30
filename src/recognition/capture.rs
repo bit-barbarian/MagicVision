@@ -15,7 +15,7 @@ use std::{
 
 use crate::{
     constants::{CAMERA_HEIGHT, CAMERA_WIDTH},
-    messages::CameraFrame,
+    recognition::messages::CameraFrame,
     types::DynResult,
 };
 

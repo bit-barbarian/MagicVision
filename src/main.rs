@@ -1,6 +1,5 @@
 mod cache;
 mod constants;
-mod messages;
 mod recognition;
 mod types;
 use crossbeam::channel::RecvTimeoutError;

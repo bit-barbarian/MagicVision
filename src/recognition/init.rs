@@ -15,10 +15,10 @@ use crate::{
         card_cache::{CardCache, load_card_cache},
         matching::{MatchDatabase, MatchResult, get_hasher},
     },
-    messages::{CameraFrame, RecognitionFrame},
     recognition::{
         capture::init_cam_thread,
         image_proc::{detect_card, hash_mat, preprocess},
+        messages::{CameraFrame, RecognitionFrame},
     },
     types::DynResult,
 };
