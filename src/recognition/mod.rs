@@ -1,4 +1,4 @@
-pub mod capture;
-pub mod card_detection;
-pub mod image_proc;
+mod capture;
+mod card_detection;
+mod image_proc;
 pub mod init;
