@@ -13,7 +13,11 @@ use std::{
     time::Instant,
 };
 
-use crate::{messages::CameraFrame, types::DynResult};
+use crate::{
+    constants::{CAMERA_HEIGHT, CAMERA_WIDTH},
+    messages::CameraFrame,
+    types::DynResult,
+};
 
 pub struct Camera {
     capture: VideoCapture,
@@ -25,8 +29,8 @@ impl Camera {
         if !camera.is_opened()? {
             return Err("Unable to open camera!".into());
         }
-        camera.set(videoio::CAP_PROP_FRAME_WIDTH, 1920.0)?;
-        camera.set(videoio::CAP_PROP_FRAME_HEIGHT, 1080.0)?;
+        camera.set(videoio::CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)?;
+        camera.set(videoio::CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)?;
         Ok(Camera { capture: camera })
     }
 
