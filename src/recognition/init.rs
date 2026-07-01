@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use crate::recognition::image_proc::mat_to_color_image;
 use crate::{
     cache::{
         card_cache::{CardCache, load_card_cache},
@@ -31,8 +32,8 @@ pub struct Engine {
     pub cache: CardCache,
 }
 impl Engine {
-    pub async fn start() -> DynResult<Self> {
-        let cache = load_card_cache().await?;
+    pub fn start() -> DynResult<Self> {
+        let cache = load_card_cache()?;
         let match_db = MatchDatabase::from_cache(&cache);
         let is_running = Arc::new(AtomicBool::new(true));
 
@@ -91,7 +92,7 @@ fn init_rec_thread(
                     }
 
                     let result = RecognitionFrame {
-                        display_frame,
+                        image: mat_to_color_image(&display_frame)?,
                         warped_frame,
                         matches,
                     };

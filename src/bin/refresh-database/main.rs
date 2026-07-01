@@ -55,7 +55,7 @@ async fn main() -> DynResult<()> {
     println!("Done updating image cache.");
 
     println!("Loading hash cache...");
-    let mut cache = load_card_cache().await?;
+    let mut cache = load_card_cache()?;
     println!("Hash cache loaded.");
 
     println!("Updating hash cache with new images...");

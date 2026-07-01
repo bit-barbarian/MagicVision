@@ -1,3 +1,4 @@
+use egui::ColorImage;
 use image::{DynamicImage, ImageBuffer, Rgb};
 use image_hasher::{Hasher, ImageHash};
 use opencv::{
@@ -136,6 +137,10 @@ pub fn hash_mat(mat: &Mat, hasher: &Hasher) -> DynResult<ImageHash> {
     Ok(hasher.hash_image(&image))
 }
 
+pub fn hash_image(image: &DynamicImage, hasher: &Hasher) -> DynResult<ImageHash> {
+    Ok(hasher.hash_image(image))
+}
+
 fn mat_to_dynamic_image(mat: &Mat) -> opencv::Result<DynamicImage> {
     // Convert from BGR (opencv) to RGB (image)
     let mut rgb = Mat::default();
@@ -150,4 +155,23 @@ fn mat_to_dynamic_image(mat: &Mat) -> opencv::Result<DynamicImage> {
         .expect("unexpected image dimensions");
 
     Ok(DynamicImage::ImageRgb8(image))
+}
+
+pub fn mat_to_color_image(mat: &Mat) -> opencv::Result<ColorImage> {
+    // Convert from BGR (opencv) to RGB (image)
+    let mut rgba = Mat::default();
+    imgproc::cvt_color(
+        mat,
+        &mut rgba,
+        imgproc::COLOR_BGR2RGBA,
+        0,
+        ALGO_HINT_DEFAULT,
+    )?;
+
+    let width = rgba.cols();
+    let height = rgba.rows();
+    let bytes = rgba.data_bytes()?.to_vec();
+
+    let image = ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &bytes);
+    Ok(image)
 }

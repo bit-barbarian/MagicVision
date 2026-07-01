@@ -1,3 +1,4 @@
+use egui::ColorImage;
 use opencv::core::Mat;
 
 use crate::cache::matching::MatchResult;
@@ -8,7 +9,7 @@ pub struct CameraFrame {
 }
 
 pub struct RecognitionFrame {
-    pub display_frame: Mat,
+    pub image: ColorImage,
     pub warped_frame: Option<Mat>,
     pub matches: Vec<MatchResult>,
 }

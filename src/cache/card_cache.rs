@@ -1,7 +1,6 @@
 use image_hasher::Hasher;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path, path::PathBuf};
-use tokio::fs;
+use std::{collections::HashMap, fs, path::Path, path::PathBuf};
 use uuid::Uuid;
 
 use crate::{cache::atomic_write::atomic_write, constants::DATA_DIR, types::DynResult};
@@ -56,11 +55,11 @@ impl CachedFace {
     }
 }
 
-pub async fn load_card_cache() -> DynResult<CardCache> {
+pub fn load_card_cache() -> DynResult<CardCache> {
     let path = Path::new(DATA_DIR).join("card_cache.json");
     if path.exists() {
         println!("Hash cache found!");
-        let file = fs::read(path).await?;
+        let file = fs::read(path)?;
         Ok(serde_json::from_slice(&file)?)
     } else {
         println!("No cache found.  Creating new...");
