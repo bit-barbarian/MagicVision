@@ -1,3 +1,4 @@
+use eframe::wgpu::Face;
 use futures::stream::{self, StreamExt};
 use governor::{
     Quota, RateLimiter,
@@ -38,6 +39,7 @@ struct Card {
     name: String,
     set: String,
     collector_number: String,
+    oracle_text: Option<String>,
     image_uris: Option<ImageUris>,
     card_faces: Option<Vec<CardFace>>,
 }
@@ -45,6 +47,7 @@ struct Card {
 #[derive(Debug, Deserialize)]
 struct CardFace {
     image_uris: Option<ImageUris>,
+    oracle_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,12 +56,19 @@ struct ImageUris {
     normal: String,
 }
 
+pub struct FaceDetails {
+    pub face_number: u8,
+    pub border_crop_uri: String,
+    pub normal_art_uri: String,
+    pub oracle_text: Option<String>,
+}
+
 pub struct Job {
     pub id: Uuid,
     pub name: String,
     pub set: String,
     pub number: String,
-    pub uris: Vec<(u8, String, String)>, // card_face, border_crop url, normal url
+    pub face_details: Vec<FaceDetails>,
 }
 impl Job {
     pub fn image_path(&self, image_dir: &Path, face: &u8) -> PathBuf {
@@ -153,7 +163,7 @@ pub async fn update_images(json_filepath: &Path) -> DynResult<Vec<Job>> {
             continue;
         };
 
-        let Some(uris) = get_image_uris(&card.image_uris, &card.card_faces) else {
+        let Some(face_details) = get_face_details(&card) else {
             continue;
         };
 
@@ -162,7 +172,7 @@ pub async fn update_images(json_filepath: &Path) -> DynResult<Vec<Job>> {
             name: card.name,
             set: card.set,
             number: card.collector_number,
-            uris,
+            face_details,
         });
     }
 
@@ -250,9 +260,8 @@ async fn process_job(
     limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
     image_dir: PathBuf,
 ) {
-    let uris = &job.uris;
-    for (face, uri, fallback_uri) in uris {
-        let path = job.image_path(&image_dir, face);
+    for face in &job.face_details {
+        let path = job.image_path(&image_dir, &face.face_number);
         if path.try_exists().unwrap_or(false) {
             continue;
         }
@@ -263,21 +272,28 @@ async fn process_job(
             job.name,
             job.set,
             job.number,
-            match face {
+            match face.face_number {
                 0 => "front",
                 1 => "back",
                 _ => "other",
             }
         );
 
-        let response =
-            match fetch_with_retry(&client, uri, fallback_uri, &headers, MAX_RETRIES).await {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("request error: {e}");
-                    return;
-                }
-            };
+        let response = match fetch_with_retry(
+            &client,
+            &face.border_crop_uri,
+            &face.normal_art_uri,
+            &headers,
+            MAX_RETRIES,
+        )
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("request error: {e}");
+                return;
+            }
+        };
         let bytes = match response.bytes().await {
             Ok(b) => b,
             Err(e) => {
@@ -291,32 +307,38 @@ async fn process_job(
     }
 }
 
-// Returns vector of (face_number, uri)
-fn get_image_uris(
-    image_uris: &Option<ImageUris>,
-    card_faces: &Option<Vec<CardFace>>,
-) -> Option<Vec<(u8, String, String)>> {
+fn get_face_details(card: &Card) -> Option<Vec<FaceDetails>> {
     // Check if card is single-faced
-    if let Some(uris) = image_uris {
+    if let Some(uris) = &card.image_uris {
         let primary = uris.border_crop.clone();
         let fallback = uris.normal.clone();
-        Some(vec![(0, primary, fallback)])
+        Some(vec![FaceDetails {
+            face_number: 0,
+            border_crop_uri: primary,
+            normal_art_uri: fallback,
+            oracle_text: card.oracle_text.clone(),
+        }])
 
     // Check if card is multi-faced
-    } else if let Some(faces) = card_faces {
-        let mut face_uris: Vec<(u8, String, String)> = Vec::new();
+    } else if let Some(faces) = &card.card_faces {
+        let mut face_details: Vec<FaceDetails> = Vec::new();
 
         for (i, face) in faces.iter().enumerate() {
             let face_num = u8::try_from(i).expect("Card has more than 255 faces.");
             if let Some(uris) = &face.image_uris {
                 let primary = uris.border_crop.clone();
                 let fallback = uris.normal.clone();
-                face_uris.push((face_num, primary, fallback));
+                face_details.push(FaceDetails {
+                    face_number: face_num,
+                    border_crop_uri: primary,
+                    normal_art_uri: fallback,
+                    oracle_text: face.oracle_text.clone(),
+                });
             }
         }
-        Some(face_uris)
+        Some(face_details)
 
-    // Fallback to no image at all
+    // Fallback to no details at all
     } else {
         None
     }

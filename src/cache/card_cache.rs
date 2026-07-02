@@ -37,13 +37,20 @@ impl CachedCard {
 pub struct CachedFace {
     pub face: u8,
     pub image_path: PathBuf,
+    pub oracle_text: String,
     pub phash: [u8; 32],
 }
 impl CachedFace {
-    pub fn new(face: u8, image_path: &Path, hasher: &Hasher) -> DynResult<Self> {
+    pub fn new(
+        face: u8,
+        image_path: &Path,
+        hasher: &Hasher,
+        oracle_text: String,
+    ) -> DynResult<Self> {
         Ok(Self {
             face,
             image_path: image_path.into(),
+            oracle_text,
             phash: Self::compute_phash(image_path, hasher)?,
         })
     }

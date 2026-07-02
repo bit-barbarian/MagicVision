@@ -40,11 +40,15 @@ fn build_cached_card(job: &Job, hasher: &Hasher) -> DynResult<CachedCard> {
     let image_dir = Path::new(DATA_DIR).join("images/");
 
     let faces: Vec<CachedFace> = job
-        .uris
+        .face_details
         .iter()
-        .map(|(face_num, _, _)| {
-            let image_path = job.image_path(&image_dir, face_num);
-            CachedFace::new(*face_num, &image_path, hasher)
+        .map(|face| {
+            let image_path = job.image_path(&image_dir, &face.face_number);
+            let oracle_text: String = match &face.oracle_text {
+                Some(t) => t.to_owned(),
+                None => String::from(""),
+            };
+            CachedFace::new(face.face_number, &image_path, hasher, oracle_text)
         })
         .collect::<DynResult<_>>()?;
 
