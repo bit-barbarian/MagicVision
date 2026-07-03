@@ -1,9 +1,12 @@
-# Magic Vision
+# MagicVision
 
-The easiest way to import your physical decks into Moxfield,
-Archidekt, MTGDesktopCompanion, or any other collection tracker!
+The easiest way to import your physical decks into
+[Moxfield](https://moxfield.com/),
+[Archidekt](https://archidekt.com/),
+[MtgDesktopCompanion](https://github.com/nicho92/MtgDesktopCompanion),
+or any other collection tracker!
 
-Features:
+## Features
 
 - Real-time webcam scanning
 - Automatic Magic: The Gathering card recognition
@@ -11,5 +14,10 @@ Features:
 - Export decklists in multiple formats\*
 - Review and edit the decklist before exporting
 
-\*If you use a collection tracker that uses a format that is not
-included in Magic Vision, leave a feature request with the format you need!
+\*If you use a collection tracker that uses a format not
+included in MagicVision, leave a feature request with the format you need!
+
+## Roadmap
+
+- Integrate [rgb](https://crates.io/crates/rgb)
+  to increase format conversion efficiency
