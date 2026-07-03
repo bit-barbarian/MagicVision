@@ -29,7 +29,9 @@ pub fn get_data_dir() -> PathBuf {
 }
 
 pub fn get_image_dir() -> PathBuf {
-    let image_dir = get_data_dir().join("images/");
+    let proj_dir = ProjectDirs::from("com", "Bit-Barbarian", "MagicVision")
+        .expect("Unable to retrieve home directory path!");
+    let image_dir = proj_dir.cache_dir().join("images/");
     match image_dir.try_exists() {
         Ok(true) => {}
         Ok(false) => create_dir_all(&image_dir).expect("Could not create image directory!"),

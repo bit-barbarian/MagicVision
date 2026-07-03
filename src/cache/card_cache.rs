@@ -66,7 +66,7 @@ impl CachedFace {
 }
 
 pub fn load_card_cache() -> DynResult<CardCache> {
-    let path = get_data_dir().join("card_cache.json");
+    let path = get_data_dir().join("cards.json");
     if path.exists() {
         println!("Hash cache found!");
         let file = fs::read(path)?;
@@ -79,7 +79,7 @@ pub fn load_card_cache() -> DynResult<CardCache> {
 }
 
 pub async fn save_card_cache(cache: &CardCache) -> DynResult<()> {
-    let path = get_data_dir().join("card_cache.json");
+    let path = get_data_dir().join("cards.json");
     let json = serde_json::to_vec(&cache)?;
     atomic_write(&path, &json).await
 }
