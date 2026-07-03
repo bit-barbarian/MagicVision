@@ -145,7 +145,7 @@ pub async fn download_bulk_data(url: &str) -> DynResult<PathBuf> {
 
 pub async fn update_images(json_filepath: &Path) -> DynResult<Vec<Job>> {
     // Setup IO
-    let image_dir = get_image_dir().join("images/");
+    let image_dir = get_image_dir();
     let file = File::open(json_filepath).await?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
