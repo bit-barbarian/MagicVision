@@ -1,5 +1,6 @@
 mod image_proc;
 mod scryfall;
+use magicvision::cache::paths::get_data_dir;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tokio::fs;
@@ -7,9 +8,8 @@ use tokio::fs;
 use crate::image_proc::update_cache_with_jobs;
 use crate::scryfall::{download_bulk_data, get_bulk_data_endpoint, update_images};
 use magicvision::{
-    cache::atomic_write::atomic_write,
     cache::card_cache::{load_card_cache, save_card_cache},
-    constants::DATA_DIR,
+    cache::paths::atomic_write,
     types::DynResult,
 };
 
@@ -42,9 +42,7 @@ async fn main() -> DynResult<()> {
                 .rfind('/')
                 .map(|idx| &current_url[idx + 1..]) // Slice from after the last slash to the end
                 .unwrap_or("data.ndjson");
-            let fp = PathBuf::from_str(DATA_DIR)?
-                .join(filename)
-                .with_extension("ndjson");
+            let fp = get_data_dir().join(filename).with_extension("ndjson");
             println!("Checking local file: {}", fp.to_string_lossy());
             fp
         }
@@ -66,7 +64,7 @@ async fn main() -> DynResult<()> {
 }
 
 async fn read_stored_url() -> DynResult<Option<String>> {
-    let path = Path::new(DATA_DIR).join("last_downloaded_url.txt");
+    let path = get_data_dir().join("last_downloaded_url.txt");
     if !path.exists() {
         return Ok(None);
     }
@@ -81,9 +79,7 @@ async fn read_stored_url() -> DynResult<Option<String>> {
 }
 
 async fn write_stored_url(url: &str) -> DynResult<()> {
-    let path = Path::new(DATA_DIR).join("last_downloaded_url.txt");
-    fs::create_dir_all(DATA_DIR).await?;
-
+    let path = get_data_dir().join("last_downloaded_url.txt");
     atomic_write(&path, url.as_bytes()).await?;
     Ok(())
 }

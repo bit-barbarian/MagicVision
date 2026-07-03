@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 arrayvec = "0.7.7"
 crossbeam = "0.8.4"
+directories = "6.0.0"
 eframe = "0.35.0"
 egui = "0.35.0"
 egui_extras = { version = "0.35.0", features = ["all_loaders"] }

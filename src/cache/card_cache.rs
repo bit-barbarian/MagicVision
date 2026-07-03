@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::Path, path::PathBuf};
 use uuid::Uuid;
 
-use crate::{cache::atomic_write::atomic_write, constants::DATA_DIR, types::DynResult};
+use crate::{
+    cache::paths::{atomic_write, get_data_dir},
+    types::DynResult,
+};
 
 pub type CardCache = HashMap<Uuid, CachedCard>;
 
@@ -63,7 +66,7 @@ impl CachedFace {
 }
 
 pub fn load_card_cache() -> DynResult<CardCache> {
-    let path = Path::new(DATA_DIR).join("card_cache.json");
+    let path = get_data_dir().join("card_cache.json");
     if path.exists() {
         println!("Hash cache found!");
         let file = fs::read(path)?;
@@ -76,7 +79,7 @@ pub fn load_card_cache() -> DynResult<CardCache> {
 }
 
 pub async fn save_card_cache(cache: &CardCache) -> DynResult<()> {
-    let path = Path::new(DATA_DIR).join("card_cache.json");
+    let path = get_data_dir().join("card_cache.json");
     let json = serde_json::to_vec(&cache)?;
     atomic_write(&path, &json).await
 }

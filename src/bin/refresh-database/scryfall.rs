@@ -21,7 +21,10 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use magicvision::{cache::atomic_write::atomic_write, constants::DATA_DIR, types::DynResult};
+use magicvision::{
+    cache::paths::{atomic_write, get_data_dir, get_image_dir},
+    types::DynResult,
+};
 
 const MAX_RETRIES: usize = 3;
 const MAX_CONCURRENT: usize = 20;
@@ -134,7 +137,7 @@ pub async fn download_bulk_data(url: &str) -> DynResult<PathBuf> {
         .rfind('/')
         .map(|idx| &url[idx + 1..]) // Slice from after the last slash to the end
         .unwrap_or("data.ndjson");
-    let file_path = Path::new(DATA_DIR).join(filename).with_extension("ndjson");
+    let file_path = get_data_dir().join(filename).with_extension("ndjson");
     println!("Saving data to: {}", &file_path.to_string_lossy());
     atomic_write(&file_path, processed_content.as_bytes()).await?;
     Ok(file_path)
@@ -142,8 +145,7 @@ pub async fn download_bulk_data(url: &str) -> DynResult<PathBuf> {
 
 pub async fn update_images(json_filepath: &Path) -> DynResult<Vec<Job>> {
     // Setup IO
-    let image_dir = Path::new(DATA_DIR).join("images/");
-    fs::create_dir_all(&image_dir).await?;
+    let image_dir = get_image_dir().join("images/");
     let file = File::open(json_filepath).await?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();

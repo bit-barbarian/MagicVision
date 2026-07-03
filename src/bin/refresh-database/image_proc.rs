@@ -8,8 +8,8 @@ use magicvision::{
     cache::{
         card_cache::{CachedCard, CachedFace, CardCache},
         matching::get_hasher,
+        paths::get_image_dir,
     },
-    constants::DATA_DIR,
     types::DynResult,
 };
 
@@ -37,7 +37,7 @@ pub fn update_cache_with_jobs(cache: &mut CardCache, jobs: &[Job]) -> DynResult<
 }
 
 fn build_cached_card(job: &Job, hasher: &Hasher) -> DynResult<CachedCard> {
-    let image_dir = Path::new(DATA_DIR).join("images/");
+    let image_dir = get_image_dir();
 
     let faces: Vec<CachedFace> = job
         .face_details
