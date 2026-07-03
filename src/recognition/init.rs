@@ -93,7 +93,6 @@ fn init_rec_thread(
 
                     let result = RecognitionFrame {
                         image: mat_to_color_image(&display_frame)?,
-                        warped_frame,
                         matches,
                     };
 

@@ -1,4 +1,3 @@
-use eframe::wgpu::Face;
 use futures::stream::{self, StreamExt};
 use governor::{
     Quota, RateLimiter,

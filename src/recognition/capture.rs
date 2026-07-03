@@ -19,7 +19,7 @@ use crate::{
     types::DynResult,
 };
 
-pub struct Camera {
+struct Camera {
     capture: VideoCapture,
 }
 

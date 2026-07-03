@@ -10,6 +10,5 @@ pub struct CameraFrame {
 
 pub struct RecognitionFrame {
     pub image: ColorImage,
-    pub warped_frame: Option<Mat>,
     pub matches: Vec<MatchResult>,
 }
