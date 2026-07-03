@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archive: tar.gz
+            exe: magicvision
+
+          - os: macos-latest
+            archive: tar.gz
+            exe: magicvision
+
+          - os: windows-latest
+            archive: zip
+            exe: magicvision.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      #####################################
+      # Install OpenCV
+      #####################################
+
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libopencv-dev \
+            clang \
+            libclang-dev \
+            pkg-config
+
+      - if: runner.os == 'macOS'
+        run: |
+          brew install llvm opencv
+
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install llvm opencv -y
+
+      #####################################
+
+      - run: cargo build --release
+
+      #####################################
+      # Package
+      #####################################
+
+      - if: runner.os == 'Linux'
+        run: |
+          mkdir release
+          cp target/release/magicvision release/
+          cp target/release/refresh-database release/
+          cp README.md release/
+          cp LICENSE release/
+
+          tar czf magicvision-${{ github.ref_name }}-linux.tar.gz -C release .
+
+      - if: runner.os == 'macOS'
+        run: |
+          mkdir release
+          cp target/release/magicvision release/
+          cp target/release/refresh-database release/
+          cp README.md release/
+          cp LICENSE release/
+
+          tar czf magicvision-${{ github.ref_name }}-macos.tar.gz -C release .
+
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          mkdir release
+
+          Copy-Item target\release\magicvision.exe release\
+
+          Copy-Item target\release\refresh-database.exe release\
+
+          Copy-Item README.md release\
+
+          Copy-Item LICENSE release\
+
+          # copy OpenCV runtime libs
+          Get-ChildItem "C:\tools\opencv\build\x64\vc*\bin\opencv*.dll" |
+            Copy-Item -Destination release
+
+          Compress-Archive release\* magicvision-${{ github.ref_name }}-windows.zip
+
+      #####################################
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz
+            *.zip

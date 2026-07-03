@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    runs-on: ${{ matrix.os}}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Linux
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libopencv-dev \
+            clang \
+            libclang-dev \
+            pkg-config
+
+      # macOS
+      - if: runner.os == 'macOS'
+        run: |
+          brew install llvm opencv
+
+      # Windows
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install llvm opencv -y
+
+      - run: cargo build --release
