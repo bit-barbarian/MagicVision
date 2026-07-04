@@ -15,7 +15,10 @@ futures = "0.3.32"
 governor = "0.10.4"
 image = "0.25.10"
 image_hasher = { version = "3.1.1", features = ["fast_resize_unstable"] }
-opencv = "0.99.0"
+opencv = { version = "0.99.0", default-features = false, features = [
+  "imgproc",
+  "videoio",
+] }
 rayon = "1.12.0"
 reqwest = { version = "0.13.4", features = ["blocking", "json"] }
 rfd = "0.17.2"
