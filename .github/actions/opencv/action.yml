@@ -1,0 +1,123 @@
+name: Setup OpenCV 4.13
+description: Builds or restores OpenCV 4.13.0 for the current runner
+
+inputs:
+  version:
+    description: Builds or restores OpenCV 4.13.0 for the current runner
+    required: true
+    default: "4.13.0"
+
+runs:
+  using: "composite"
+  steps:
+    #########################################
+    # Cache
+    #########################################
+
+    - name: Cache OpenCV (Linux/macOS)
+      id: cache_unix
+      if: runner.os != 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: ~/opencv-install
+        key: opencv-${{ inputs.version }}-${{ runner.os }}
+
+    - name: Cache OpenCV (Windows)
+      id: cache_win
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/vcpkg/installed
+          ~/vcpkg/packages
+        key: opencv-${{ inputs.version }}-${{ runner.os }}
+
+    #########################################
+    # Linux (build from source)
+    #########################################
+
+    - name: Build OpenCV (Linux)
+      if: runner.os == 'Linux' && steps.cache_unix.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential ninja-build cmake git pkg-config \
+          clang libclang-dev \
+          libgtk-3-dev libjpeg-dev libpng-dev libtiff-dev \
+          libavcodec-dev libavformat-dev libswscale-dev
+
+        git clone --depth 1 --branch ${{ inputs.version }} https://github.com/opencv/opencv.git
+
+        cmake -S opencv -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=$HOME/opencv-install \
+          -DBUILD_LIST=core,imgproc,videoio \
+          -DBUILD_TESTS=OFF \
+          -DBUILD_PERF_TESTS=OFF \
+          -DBUILD_EXAMPLES=OFF \
+          -DBUILD_DOCS=OFF \
+          -DBUILD_JAVA=OFF \
+          -DBUILD_opencv_apps=OFF
+
+        cmake --build build
+        cmake --install build
+
+    - name: Configure OpenCV (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "OpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv4" >> $GITHUB_ENV
+        echo "PKG_CONFIG_PATH=$HOME/opencv-install/lib/pkgconfig" >> $GITHUB_ENV
+
+    #########################################
+    # macOS (Homebrew)
+    #########################################
+
+    - name: Install OpenCV (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew update
+        brew install opencv ninja llvm
+
+        echo "OpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4" >> $GITHUB_ENV
+        echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
+
+    #########################################
+    # Windows (Choco)
+    #########################################
+
+    - name: Setup MSVC environment
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install OpenCV
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        choco install -y llvm
+        choco install -y opencv --version "4.13.0"
+
+        rustup default stable-x86_64-pc-windows-msvc
+
+        Write-Host "Searching for OpenCVConfig.cmake..."
+
+        $base = Get-ChildItem "C:\tools" -Recurse -Directory |
+          Where-Object { $_.Name -match "opencv" } |
+          Select-Object -First 1
+
+        $file = Get-ChildItem $base.FullName -Recurse -Filter OpenCVConfig.cmake |
+          Select-Object -First 1
+
+        if (-not $file) {
+          Write-Error "OpenCVConfig.cmake not found"
+          exit 1
+        }
+
+        Write-Host "Found: $($file.FullName)"
+
+        $dir = $file.DirectoryName
+
+        echo "OpenCV_DIR=$dir" >> $env:GITHUB_ENV
+        Write-Host "Set OpenCV_DIR=$dir"

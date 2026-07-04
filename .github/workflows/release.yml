@@ -16,103 +16,63 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            archive: tar.gz
             exe: magicvision
+            archive: tar.gz
 
           - os: macos-latest
-            archive: tar.gz
             exe: magicvision
+            archive: tar.gz
 
           - os: windows-latest
-            archive: zip
             exe: magicvision.exe
+            archive: zip
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 360
     env:
       RUST_BACKTRACE: 1
+      OPENCV_VERSION: 4.13.0
+      PKG_CONFIG_ALLOW_CROSS: "1"
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-
       - uses: Swatinem/rust-cache@v2
 
-      #####################################
-      # Install Dependencies
-      #####################################
+      #########################################
+      # OpenCV
+      #########################################
 
-      - if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libopencv-dev \
-            clang \
-            libclang-dev \
-            pkg-config
-          # echo "OPENCV_DIR=/usr" >> $GITHUB_ENV
+      - name: Setup OpenCV
+        uses: ./.github/actions/opencv
+        with:
+          version: 4.13.0
 
-      - if: runner.os == 'macOS'
-        run: |
-          brew install llvm opencv
-          echo "OPENCV_DIR=$(brew --prefix opencv)" >> $GITHUB_ENV
-          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
+      #########################################
+      # Build
+      #########################################
 
-      - if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          choco install llvm opencv -y
-          # Verify installation path
-          $opencvPath = Get-ChildItem "C:\ProgramData\chocolatey\lib\opencv*" -Directory |
-            Select-Object -First 1
+      - name: Build
+        run: cargo build --release
 
-          "OPENCV_DIR=$($opencvPath.FullName)\build" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      #########################################
+      # Package
+      #########################################
 
-      #####################################
-
-      - run: cargo build --release --locked
-
-      - if: runner.os != 'Windows'
-        run: |
-          test -f target/release/${{ matrix.exe }} || exit 1
-
-      - if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          if (!(Test-Path target\release\${{ matrix.exe }})) {
-            throw "Build failed"
-          }
-
-      #####################################
-      # Package and validate
-      #####################################
-
-      - if: runner.os == 'Linux'
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           mkdir release
           cp target/release/magicvision release/
           cp target/release/refresh-database release/
           cp README.md LICENSE release/
 
-          # Verify files before archiving
-          ls -la release/
-          tar czf magicvision-${{ github.ref_name }}-${{ runner.os }}.tar.gz -C release .
-          test -f magicvision-${{ github.ref_name }}-${{ runner.os }}.tar.gz
+          tar czf magicvision-${{ github.ref_name }}-${{ runner.os }}.${{ matrix.archive }} -C release .
 
-      - if: runner.os == 'macOS'
-        run: |
-          mkdir release
-          cp target/release/magicvision release/
-          cp target/release/refresh-database release/
-          cp README.md LICENSE release/
-
-          # Verify files before archiving
-          ls -la release/
-          tar czf magicvision-${{ github.ref_name }}-${{ runner.os }}.tar.gz -C release .
-          test -f magicvision-${{ github.ref_name }}-${{ runner.os }}.tar.gz
-
-      - if: runner.os == 'Windows'
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
         shell: powershell
         run: |
           mkdir release
@@ -121,22 +81,20 @@ jobs:
 
           Copy-Item target\release\refresh-database.exe release\
 
-          Copy-Item README.md LICENSE release\
+          Copy-Item README.md release\
 
-          # copy OpenCV runtime libs
-          $opencvBins = "C:\ProgramData\chocolatey\lib\opencv\*\build\x64\vc*\bin" -replace '\*', '*'
+          Copy-Item LICENSE release\
 
-          $dlls = Get-ChildItem "$opencvBins\opencv*.dll"
+          Get-ChildItem "C:\tools\opencv\" -Recurse -Filter "opencv*.dll" |
+            Copy-Item -Destination release
 
-          if ($dlls.Count -eq 0) {
-            throw "No OpenCV DLLs found."
-          }
+          Compress-Archive `
+            -Path release\*
+            -DestinationPath magicvision-${{ github.ref_name }}-${{ runner.os }}.${{ matrix.archive }}
 
-          ls release\
-          Compress-Archive -Path release\* -DestinationPath magicvision-${{ github.ref_name }}-windows.zip
-          test-Path magicvision-${{ github.ref_name }}-windows.zip
-
-      #####################################
+      #########################################
+      # Release
+      #########################################
 
       - uses: softprops/action-gh-release@v2
         with:
