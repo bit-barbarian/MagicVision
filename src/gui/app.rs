@@ -87,7 +87,7 @@ impl Application {
                         ui.selectable_value(
                             &mut self.file_format,
                             DeckFileFormat::Archidekt,
-                            "Archidect",
+                            "Archidekt",
                         );
                     });
                 ui.label("file format.");

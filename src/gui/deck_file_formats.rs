@@ -96,6 +96,6 @@ pub fn format_line(file_format: &DeckFileFormat, dc: &DeckCard) -> String {
                 }
             )
         }
-        DeckFileFormat::Archidekt => format!("{} {}", dc.count, dc.card.name),
+        DeckFileFormat::Archidekt => format!("{} {}\n", dc.count, dc.card.name),
     }
 }
