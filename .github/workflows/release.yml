@@ -85,11 +85,20 @@ jobs:
 
           Copy-Item LICENSE release\
 
-          Get-ChildItem "C:\tools\opencv\" -Recurse -Filter "opencv*.dll" |
-            Copy-Item -Destination release
+          $dlls = Get-ChildItem C:\tools -Recurse -Filter "opencv*.dll"
+
+          if (-not $dlls) {
+            throw "No OpenCV DLLs found."
+          }
+
+          Write-Host "Copying OpenCV DLLs:"
+          $dlls | ForEach-Object {
+            Write-Host "  $($_.FullName)"
+            Copy-Item $_.FullName release\
+          }
 
           Compress-Archive `
-            -Path release\*
+            -Path release\* `
             -DestinationPath magicvision-${{ github.ref_name }}-${{ runner.os }}.${{ matrix.archive }}
 
       #########################################
