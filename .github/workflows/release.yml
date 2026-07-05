@@ -85,7 +85,7 @@ jobs:
 
           Copy-Item LICENSE release\
 
-          $dlls = Get-ChildItem C:\tools -Recurse -Filter "opencv*.dll"
+          $dlls = Get-ChildItem C:\tools\opencv\build\x64 -Recurse -Filter "opencv_world*.dll"
 
           if (-not $dlls) {
             throw "No OpenCV DLLs found."
