@@ -68,7 +68,6 @@ impl CachedFace {
 pub fn load_card_cache() -> DynResult<CardCache> {
     let path = get_data_dir().join("cards.json");
     if path.exists() {
-        println!("Hash cache found!");
         let file = fs::read(path)?;
         Ok(serde_json::from_slice(&file)?)
     } else {
