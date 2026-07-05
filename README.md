@@ -6,16 +6,18 @@ The easiest way to import your physical decks into
 [MtgDesktopCompanion](https://github.com/nicho92/MtgDesktopCompanion),
 or any other collection tracker!
 
+https://github.com/user-attachments/assets/54fded23-b5d5-4c2f-bd4b-61ece0fc191b
+
 ## Features
 
-- Real-time webcam scanning
-- Automatic Magic: The Gathering card recognition
-- Native desktop GUI built with egui
-- Export decklists in multiple formats\*
-- Review and edit the decklist before exporting
+- Real-time webcam card recognition and matching
+- Native desktop GUI built with [egui](https://github.com/emilk/egui)
+- Review and edit the decklist as you go
+- Export decklists in multiple formats
 
-\*If you use a collection tracker that uses a format not
-included in MagicVision, leave a feature request with the format you need!
+> [!NOTE]
+> If you use a collection tracker with a format not included in MagicVision,
+> please leave a feature request with the format you use!
 
 ## Installation
 
