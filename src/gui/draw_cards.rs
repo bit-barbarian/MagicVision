@@ -1,4 +1,5 @@
 use egui::DragValue;
+use url::Url;
 
 use crate::{
     cache::card_cache::CachedCard,
@@ -29,27 +30,29 @@ pub fn draw_deck_card(ui: &mut egui::Ui, dc: &mut DeckCard) -> bool {
                 delete_card = true;
             }
             ui.add(
-                egui::Image::new(format!(
-                    "file://{}",
-                    dc.card
-                        .faces
-                        .first()
-                        .expect("unable to find card face image (corrupt cache?)")
-                        .image_path
-                        .to_string_lossy(),
+                egui::Image::new(String::from(
+                    Url::from_file_path(
+                        &dc.card
+                            .faces
+                            .first()
+                            .expect("unable to find card face image (corrupt cache?)")
+                            .image_path,
+                    )
+                    .expect("unable to parse file path into file URI"),
                 ))
                 .sense(egui::Sense::hover()),
             )
             .on_hover_ui(|_ui| {
                 ui.add(
-                    egui::Image::new(format!(
-                        "file://{}",
-                        dc.card
-                            .faces
-                            .first()
-                            .expect("unable to find card face image (corrupt cache?)")
-                            .image_path
-                            .to_string_lossy(),
+                    egui::Image::new(String::from(
+                        Url::from_file_path(
+                            &dc.card
+                                .faces
+                                .first()
+                                .expect("unable to find card face image (corrupt cache?)")
+                                .image_path,
+                        )
+                        .expect("unable to parse file path into file URI"),
                     ))
                     .fit_to_original_size(1.0),
                 );
@@ -88,25 +91,29 @@ pub fn draw_match_card(ui: &mut egui::Ui, card: &CachedCard, conf: u32) -> Optio
             });
 
             ui.add(
-                egui::Image::new(format!(
-                    "file://{}",
-                    card.faces
-                        .first()
-                        .expect("unable to find card face image (corrupt cache?)")
-                        .image_path
-                        .to_string_lossy(),
+                egui::Image::new(String::from(
+                    Url::from_file_path(
+                        &card
+                            .faces
+                            .first()
+                            .expect("unable to find card face image (corrupt cache?)")
+                            .image_path,
+                    )
+                    .expect("unable to parse file path into file URI"),
                 ))
                 .sense(egui::Sense::hover()),
             )
             .on_hover_ui(|_ui| {
                 ui.add(
-                    egui::Image::new(format!(
-                        "file://{}",
-                        card.faces
-                            .first()
-                            .expect("unable to find card face image (corrupt cache?)")
-                            .image_path
-                            .to_string_lossy(),
+                    egui::Image::new(String::from(
+                        Url::from_file_path(
+                            &card
+                                .faces
+                                .first()
+                                .expect("unable to find card face image (corrupt cache?)")
+                                .image_path,
+                        )
+                        .expect("unable to parse file path into file URI"),
                     ))
                     .fit_to_original_size(1.0),
                 );

@@ -143,15 +143,16 @@ impl Application {
                     ui.label(&top_card.card.faces[top_card.face_num as usize].oracle_text);
 
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                        ui.add(egui::Image::new(format!(
-                            "file://{}",
-                            top_card
-                                .card
-                                .faces
-                                .first()
-                                .expect("unable to find card face image (corrupt cache?)")
-                                .image_path
-                                .to_string_lossy(),
+                        ui.add(egui::Image::new(String::from(
+                            url::Url::from_file_path(
+                                &top_card
+                                    .card
+                                    .faces
+                                    .first()
+                                    .expect("unable to find card face image (corrupt cache?)")
+                                    .image_path,
+                            )
+                            .expect("unable to parse file path into file URI"),
                         )));
                     });
                 }
