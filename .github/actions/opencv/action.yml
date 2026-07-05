@@ -121,3 +121,39 @@ runs:
 
         echo "OpenCV_DIR=$dir" >> $env:GITHUB_ENV
         Write-Host "Set OpenCV_DIR=$dir"
+
+        $lib = Get-ChildItem C:\tools\opencv -Recurse -Filter opencv_world*.lib |
+            Select-Object -First 1
+
+        $libDir = $lib.DirectoryName
+
+        $include = Get-ChildItem C:\tools\opencv -Recurse -Directory |
+            Where-Object {
+                Test-Path "$($_.FullName)\opencv2\core.hpp"
+            } |
+            Select-Object -First 1
+
+        $dllDir = Get-ChildItem C:\tools\opencv -Recurse -Directory |
+            Where-Object {
+                Test-Path "$($_.FullName)\opencv_world*.dll"
+            } |
+            Select-Object -First 1
+
+        $libName = [System.IO.Path]::GetFileNameWithoutExtension($lib.Name)
+
+        "OPENCV_DISABLE_PROBES=cmake,pkg_config,vcpkg,vcpkg_cmake" >> $env:GITHUB_ENV
+        "OPENCV_LINK_LIBS=$libName" >> $env:GITHUB_ENV
+        "OPENCV_LINK_PATHS=$libDir" >> $env:GITHUB_ENV
+        "OPENCV_INCLUDE_PATHS=$($include.FullName)" >> $env:GITHUB_ENV
+        "PATH=$($dllDir.FullName);$env:PATH" >> $env:GITHUB_ENV
+
+    - name: Dump OpenCV env
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        Get-ChildItem Env: | Where-Object {
+          $_.Name -like "OPENCV*" -or
+          $_.Name -eq "OpenCV_DIR"
+        } | Sort-Object Name
+
+        Get-ChildItem C:\tools\opencv\build\x64 -Recurse -Filter *.lib
