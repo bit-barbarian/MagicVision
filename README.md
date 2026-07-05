@@ -38,7 +38,8 @@ included in MagicVision, leave a feature request with the format you need!
 
 ### From source
 
-1. Install opencv >= v4.11 (tested with 4.13), clang (part of llvm), and [rust](https://rust-lang.org/tools/install/).
+1. Install opencv >= v4.11 (tested with 4.13), clang (part of llvm), and
+   [rust](https://rust-lang.org/tools/install/).
 2. `git clone`
 3. `cd MagicVision`
 4. `cargo run --bin magicvision` (or `--bin refresh-database`)
