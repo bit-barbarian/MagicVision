@@ -1,6 +1,6 @@
 [package]
 name = "magicvision"
-version = "1.0.22"
+version = "1.0.1"
 edition = "2024"
 
 [dependencies]
