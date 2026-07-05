@@ -53,7 +53,7 @@ If it is your first time using MagicVision, run `refresh-database`. This will:
    of each magic card and store it alongside the Scryfall card data.
 
 > [!NOTE]
-> The total space used for cache data is ~12GB.
+> The total space used for cache is ~500MB bulk data and ~12GB images.
 
 `refresh-database` will take a while to run depending on your download speed and
 CPU power. It waits 20ms between downloads to be respectful to Scryfall's server.
