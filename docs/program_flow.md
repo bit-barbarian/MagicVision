@@ -73,11 +73,11 @@
     └──────────────┬───────────────┘
                    │
                    ▼
-          Draw result on frame
+        Card match data (MatchEntry)
                    │
                    ▼
             Main (UI) thread
-              ┌──────────┐
-              │   GUI    │
-              └──────────┘
+            ┌───────────────┐
+            │   GUI Logic   │
+            └───────────────┘
 ```
