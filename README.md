@@ -36,12 +36,12 @@ or any other collection tracker!
 
 ### Linux
 
-1. Install OpenCV v4.13 (versions 4.10, 4.11, and 4.12 _should_ work)
+1. Install OpenCV v5.0.0
 2. Download the latest [Release](https://github.com/bit-barbarian/MagicVision/releases/latest)
 
 ### From source
 
-1. Install OpenCV v4.13 (versions 4.10, 4.11, and 4.12 _should_ work),
+1. Install OpenCV v5.0.0,
    clang (part of llvm), and
    [rust](https://rust-lang.org/tools/install/).
 2. `git clone`
@@ -126,7 +126,7 @@ are always in the same folder as the `magicvision` executable.
 
 #### OpenCV Unix
 
-Ensure that you have version 4.13 of OpenCV installed and available
+Ensure that you have version 5.0 of OpenCV installed and available
 
 ### Recognition not working?
 

@@ -1,7 +1,7 @@
 use opencv::{
     Result,
     core::{Mat, Point, Point2f, Scalar, Size, Vector},
-    imgproc,
+    geometry, imgproc,
 };
 
 pub struct CardDetection {
@@ -182,7 +182,7 @@ impl CardDetection {
             }
         }
 
-        let transform = imgproc::get_perspective_transform(&src, &dst, opencv::core::DECOMP_LU)?;
+        let transform = geometry::get_perspective_transform(&src, &dst, opencv::core::DECOMP_LU)?;
 
         let mut warped = Mat::default();
         imgproc::warp_perspective(
@@ -193,6 +193,7 @@ impl CardDetection {
             imgproc::INTER_LINEAR,
             opencv::core::BORDER_CONSTANT,
             Scalar::default(),
+            opencv::core::AlgorithmHint::ALGO_HINT_DEFAULT,
         )?;
         Ok(warped)
     }

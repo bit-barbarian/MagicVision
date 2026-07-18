@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 360
     env:
       RUST_BACKTRACE: 1
-      OPENCV_VERSION: 4.13.0
+      OPENCV_VERSION: 5.0.0
       PKG_CONFIG_ALLOW_CROSS: "1"
 
     steps:
@@ -47,7 +47,7 @@ jobs:
       - name: Setup OpenCV
         uses: ./.github/actions/opencv
         with:
-          version: 4.13.0
+          version: 5.0.0
 
       #########################################
       # Build

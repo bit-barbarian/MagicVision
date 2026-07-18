@@ -7,7 +7,7 @@ use opencv::{
         AlgorithmHint::ALGO_HINT_DEFAULT, BORDER_CONSTANT, BORDER_DEFAULT, Mat, MatTraitConst,
         MatTraitConstManual, Point, Point2f, Size, Vector,
     },
-    imgproc,
+    geometry, imgproc,
 };
 
 use crate::{recognition::card_detection::CardDetection, types::DynResult};
@@ -72,7 +72,7 @@ pub fn detect_card(frame: &Mat) -> Result<Option<CardDetection>> {
     let mut largest_contour: Option<CardDetection> = None;
 
     for contour in contours {
-        let area = imgproc::contour_area(&contour, false)?;
+        let area = geometry::contour_area(&contour, false)?;
 
         // Filter out small contour lines
         if area < 3000.0 {
@@ -80,14 +80,14 @@ pub fn detect_card(frame: &Mat) -> Result<Option<CardDetection>> {
         };
 
         // Filter out contours that are not the same ratio as a magic card
-        let perimeter = imgproc::arc_length(&contour, true)?;
+        let perimeter = geometry::arc_length(&contour, true)?;
         let ratio = perimeter / area.sqrt();
         if ratio > 4.35 {
             continue;
         };
 
         let mut approx = Vector::<Point2f>::new();
-        imgproc::approx_poly_dp(&contour, &mut approx, 0.013 * perimeter, true)?;
+        geometry::approx_poly_dp(&contour, &mut approx, 0.013 * perimeter, true)?;
 
         // Filter out non-rectantular approximated polygons
         if approx.len() != 4 {

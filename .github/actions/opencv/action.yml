@@ -52,7 +52,7 @@ runs:
         cmake -S opencv -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=$HOME/opencv-install \
-          -DBUILD_LIST=core,imgproc,videoio \
+          -DBUILD_LIST=core,geometry,imgproc,videoio \
           -DBUILD_TESTS=OFF \
           -DBUILD_PERF_TESTS=OFF \
           -DBUILD_EXAMPLES=OFF \
@@ -97,7 +97,7 @@ runs:
       shell: powershell
       run: |
         choco install -y llvm
-        choco install -y opencv --version "4.13.0"
+        choco install -y opencv --version "${{ inputs.version }}"
 
         rustup default stable-x86_64-pc-windows-msvc
 
