@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    fs::{self, File},
+    fs::File,
     io::{AsyncBufReadExt, BufReader},
 };
 use uuid::Uuid;

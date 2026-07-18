@@ -1,6 +1,5 @@
 use image_hasher::Hasher;
 use rayon::prelude::*;
-use std::path::Path;
 use uuid::Uuid;
 
 use crate::scryfall::Job;
