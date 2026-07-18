@@ -1,43 +1,24 @@
-name: Setup OpenCV 4.13
-description: Builds or restores OpenCV 4.13.0 for the current runner
+name: Setup OpenCV
+description: Builds or restores OpenCV for the current runner
 
 inputs:
   version:
-    description: Builds or restores OpenCV 4.13.0 for the current runner
+    description: Builds or restores OpenCV for the current runner
     required: true
-    default: "4.13.0"
+    default: "5.0.0"
+  platform:
+    description: Pass matrix platform into composite action
+    required: true
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    #########################################
-    # Cache
-    #########################################
-
-    - name: Cache OpenCV (Linux/macOS)
-      id: cache_unix
-      if: runner.os != 'Windows'
-      uses: actions/cache@v4
-      with:
-        path: ~/opencv-install
-        key: opencv-${{ inputs.version }}-${{ runner.os }}
-
-    - name: Cache OpenCV (Windows)
-      id: cache_win
-      if: runner.os == 'Windows'
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/vcpkg/installed
-          ~/vcpkg/packages
-        key: opencv-${{ inputs.version }}-${{ runner.os }}
-
     #########################################
     # Linux (build from source)
     #########################################
 
     - name: Build OpenCV (Linux)
-      if: runner.os == 'Linux' && steps.cache_unix.outputs.cache-hit != 'true'
+      if: inputs.platform == 'linux'
       shell: bash
       run: |
         sudo apt-get update
@@ -63,97 +44,86 @@ runs:
         cmake --build build
         cmake --install build
 
-    - name: Configure OpenCV (Linux)
-      if: runner.os == 'Linux'
+    - name: Verify OpenCV install
+      if: inputs.platform == 'linux'
       shell: bash
       run: |
-        echo "OpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv4" >> $GITHUB_ENV
+        echo "==== install tree ===="
+        find $HOME/opencv-install -maxdepth 4 | sort
+
+        echo
+        echo "==== pkgconfig ===="
+        find $HOME/opencv-install -name "*.pc"
+
+        echo
+        echo "==== cmake ===="
+        find $HOME/opencv-install -name "*OpenCV*.cmake"
+
+        echo
+        echo "==== opencv config ===="
+        find $HOME/opencv-install -name "*opencv*config*.cmake"
+
+    - name: Configure OpenCV (Linux)
+      if: inputs.platform == 'linux'
+      shell: bash
+      run: |
+        echo "OpenCV_DIR=$HOME/opencv-install/lib/cmake/opencv5" >> $GITHUB_ENV
         echo "PKG_CONFIG_PATH=$HOME/opencv-install/lib/pkgconfig" >> $GITHUB_ENV
+        echo "CMAKE_PREFIX_PATH=$HOME/opencv-install" >> $GITHUB_ENV
 
     #########################################
     # macOS (Homebrew)
     #########################################
 
     - name: Install OpenCV (macOS)
-      if: runner.os == 'macOS'
+      if: inputs.platform == 'macos'
       shell: bash
       run: |
         brew update
         brew install opencv ninja llvm
 
-        echo "OpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4" >> $GITHUB_ENV
+        echo "OpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv5" >> $GITHUB_ENV
         echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
 
     #########################################
-    # Windows (Choco)
+    # Windows (choco)
     #########################################
 
-    - name: Setup MSVC environment
-      if: runner.os == 'Windows'
+    - name: Set up MSVC environment
+      if: inputs.platform == 'windows'
       uses: ilammy/msvc-dev-cmd@v1
 
     - name: Install OpenCV
-      if: runner.os == 'Windows'
+      if: inputs.platform == 'windows'
       shell: powershell
       run: |
         choco install -y llvm
-        choco install -y opencv --version "${{ inputs.version }}"
+        choco install -y opencv --version ${{ inputs.version }}
 
-        rustup default stable-x86_64-pc-windows-msvc
-
-        Write-Host "Searching for OpenCVConfig.cmake..."
-
-        $base = Get-ChildItem "C:\tools" -Recurse -Directory |
-          Where-Object { $_.Name -match "opencv" } |
+        $lib = Get-ChildItem C:\tools -Recurse -Filter opencv_world*.lib |
           Select-Object -First 1
 
-        $file = Get-ChildItem $base.FullName -Recurse -Filter OpenCVConfig.cmake |
+        $dll = Get-ChildItem C:\tools -Recurse -Filter opencv_world*.dll |
           Select-Object -First 1
 
-        if (-not $file) {
-          Write-Error "OpenCVConfig.cmake not found"
-          exit 1
-        }
+        $include = Get-ChildItem C:\tools -Recurse -Directory |
+          Where-Object {
+            Test-Path "$($_.FullName)\opencv2\core.hpp"
+          } | Select-Object -First 1
 
-        Write-Host "Found: $($file.FullName)"
-
-        $dir = $file.DirectoryName
-
-        echo "OpenCV_DIR=$dir" >> $env:GITHUB_ENV
-        Write-Host "Set OpenCV_DIR=$dir"
-
-        $lib = Get-ChildItem C:\tools\opencv -Recurse -Filter opencv_world*.lib |
-            Select-Object -First 1
-
-        $libDir = $lib.DirectoryName
-
-        $include = Get-ChildItem C:\tools\opencv -Recurse -Directory |
-            Where-Object {
-                Test-Path "$($_.FullName)\opencv2\core.hpp"
-            } |
-            Select-Object -First 1
-
-        $dllDir = Get-ChildItem C:\tools\opencv -Recurse -Directory |
-            Where-Object {
-                Test-Path "$($_.FullName)\opencv_world*.dll"
-            } |
-            Select-Object -First 1
+        if (!$lib)     { throw "Couldn't find OpenCV .lib" }
+        if (!$dll)     { throw "Couldn't find OpenCV .dll" }
+        if (!$include) { throw "Couldn't find OpenCV headers" }
 
         $libName = [System.IO.Path]::GetFileNameWithoutExtension($lib.Name)
 
+        Write-Host "Configuring OpenCV..."
+        Write-Host "Library: $($lib.FullName)"
+        Write-Host "DLL: $($dll.FullName)"
+        Write-Host "Include: $($include.FullName)"
+
         "OPENCV_DISABLE_PROBES=cmake,pkg_config,vcpkg,vcpkg_cmake" >> $env:GITHUB_ENV
         "OPENCV_LINK_LIBS=$libName" >> $env:GITHUB_ENV
-        "OPENCV_LINK_PATHS=$libDir" >> $env:GITHUB_ENV
+        "OPENCV_LINK_PATHS=$($lib.DirectoryName)" >> $env:GITHUB_ENV
         "OPENCV_INCLUDE_PATHS=$($include.FullName)" >> $env:GITHUB_ENV
-        "PATH=$($dllDir.FullName);$env:PATH" >> $env:GITHUB_ENV
-
-    - name: Dump OpenCV env
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: |
-        Get-ChildItem Env: | Where-Object {
-          $_.Name -like "OPENCV*" -or
-          $_.Name -eq "OpenCV_DIR"
-        } | Sort-Object Name
-
-        Get-ChildItem C:\tools\opencv\build\x64 -Recurse -Filter *.lib
+        "PATH=$($dll.DirectoryName);$env:PATH" >> $env:GITHUB_ENV
