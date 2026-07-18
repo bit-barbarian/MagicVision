@@ -16,16 +16,22 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             exe: magicvision
             archive: tar.gz
+            platform: linux
 
           - os: macos-latest
+            target: aarch64-apple-darwin
             exe: magicvision
             archive: tar.gz
+            platform: macos
 
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             exe: magicvision.exe
             archive: zip
+            platform: windows
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 360
@@ -35,10 +41,22 @@ jobs:
       PKG_CONFIG_ALLOW_CROSS: "1"
 
     steps:
+      #########################################
+      # Checkout
+      #########################################
       - uses: actions/checkout@v4
+        if: matrix.platform != 'windows'
+        with:
+          ref: master
+
+      - uses: actions/checkout@v4
+        if: matrix.platform == 'windows'
+        with:
+          ref: master-windows
 
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+        with:
+          targets: ${{ matrix.target }}
 
       #########################################
       # OpenCV
@@ -46,49 +64,60 @@ jobs:
 
       - name: Setup OpenCV
         uses: ./.github/actions/opencv
+        if: matrix.platform != 'windows'
         with:
           version: 5.0.0
+          platform: ${{ matrix.platform }}
+
+      - name: Setup OpenCV
+        uses: ./.github/actions/opencv
+        if: matrix.platform == 'windows'
+        with:
+          version: 4.13.0
+          platform: ${{ matrix.platform }}
 
       #########################################
       # Build
       #########################################
 
       - name: Build
-        run: cargo build --release
+        run: |
+          cargo build --release --target ${{ matrix.target }}
 
       #########################################
       # Package
       #########################################
 
       - name: Package (Unix)
-        if: runner.os != 'Windows'
+        if: matrix.platform != 'windows'
         shell: bash
         run: |
           mkdir release
-          cp target/release/magicvision release/
-          cp target/release/refresh-database release/
+
+          cp target/${{ matrix.target }}/release/magicvision release/
+          cp target/${{ matrix.target }}/release/refresh-database release/
           cp README.md LICENSE release/
 
-          tar czf magicvision-${{ github.ref_name }}-${{ runner.os }}.${{ matrix.archive }} -C release .
+          tar czf magicvision-${{ github.ref_name }}-${{ matrix.platform }}.${{ matrix.archive }} -C release .
 
       - name: Package (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.platform == 'windows'
         shell: powershell
         run: |
           mkdir release
 
-          Copy-Item target\release\magicvision.exe release\
+          Copy-Item target\${{ matrix.target }}\release\magicvision.exe release\
 
-          Copy-Item target\release\refresh-database.exe release\
+          Copy-Item target\${{ matrix.target }}\release\refresh-database.exe release\
 
-          Copy-Item README.md release\
+          Copy-Item README.md release/
 
-          Copy-Item LICENSE release\
+          Copy-Item LICENSE release/
 
           $dlls = Get-ChildItem C:\tools\opencv\build\x64 -Recurse -Filter "opencv_world*.dll"
 
           if (-not $dlls) {
-            throw "No OpenCV DLLs found."
+            throw "No OpenCV DLLs found"
           }
 
           Write-Host "Copying OpenCV DLLs:"
@@ -99,7 +128,7 @@ jobs:
 
           Compress-Archive `
             -Path release\* `
-            -DestinationPath magicvision-${{ github.ref_name }}-${{ runner.os }}.${{ matrix.archive }}
+            -DestinationPath magicvision-${{ github.ref_name }}-${{ matrix.platform }}.${{ matrix.archive }}
 
       #########################################
       # Release
