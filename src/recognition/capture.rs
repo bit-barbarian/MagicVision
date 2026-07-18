@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -63,6 +63,7 @@ pub fn init_cam_thread(
             };
 
             let _ = tx.try_send(msg);
+            thread::sleep(Duration::from_millis(50));
         }
         Ok(())
     });
