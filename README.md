@@ -41,16 +41,18 @@ or any other collection tracker!
 
 ### From source
 
-1. Install OpenCV v5.0.0,
+1. Install OpenCV v5.0.0 (4.13.0 for Windows),
    clang (part of llvm), and
    [rust](https://rust-lang.org/tools/install/).
 2. `git clone`
 3. `cd MagicVision`
-4. `cargo run --bin magicvision` (or `--bin refresh-database`)
+4. Windows only: `git switch master-windows`
+5. `cargo run --bin magicvision` (or `--bin refresh-database`)
 
 ## Quick Start
 
-1. Run the `refresh-database` executable once to build the card cache (~15-30 mins).
+1. Run the `refresh-database` executable once to build the card cache
+   (~15-30m first run, ~30s on subsequent runs).
 2. Run `magicvision`.
 3. Scan your cards.
 4. Click the `+` button and click the foil type of your card to add it to the
@@ -65,16 +67,19 @@ or any other collection tracker!
 If it is your first time using MagicVision, run the `refresh-database`
 executable. This will:
 
-1. Pull the latest changes from Scryfall and download images of every card face.
+1. Pull the latest cards and changes from Scryfall and download images of
+   every card face missing from your local cache.
 2. Generate a [perceptual hash](https://en.wikipedia.org/wiki/Perceptual_hashing)
    of each Magic card and store it alongside the Scryfall card data.
 
 > [!NOTE]
 > The cache uses ~500MB for Scryfall data and ~12GB for images.
-> Images are stored locally so that recognition is both fast and available offline.
+> Images and data are stored locally so that recognition is both fast and
+> available offline.
 
 `refresh-database` will take a while to run depending on your download speed and
-CPU power. It waits 20ms between downloads to be respectful to Scryfall's server.
+CPU power. The first run takes much longer than subsequent runs (20-30m vs 30-60s).
+It waits 20ms between downloads to be respectful to Scryfall's server.
 It will not re-download cards. If it is interrupted, it will only download
 missing cards next time it is run.
 
